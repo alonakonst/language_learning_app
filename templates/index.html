@@ -6,19 +6,91 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <h1>First draft</h1>
+    <main class="app">
+        <header class="app-header">
+            <div class="app-title">
+                <h1>Language Buddy</h1>
+                <p class="app-greeting" id="userGreeting"></p>
+            </div>
+            <button class="link-button link-button--hidden" id="logoutButton">Log out</button>
+        </header>
 
-    <!-- Input field -->
-    <input type="text" id="userText" placeholder="Type text to translate">
+        <section id="authView" class="page page--active">
+            <div class="card">
+                <h2 class="card__title">Sign in</h2>
+                <label class="field">
+                    <span class="field__label">Username</span>
+                    <input type="text" id="loginUsername" autocomplete="username" placeholder="Enter username">
+                </label>
+                <label class="field">
+                    <span class="field__label">Password</span>
+                    <input type="password" id="loginPassword" autocomplete="current-password" placeholder="Enter password">
+                </label>
+                <p class="form-status" id="loginStatus"></p>
+                <button class="btn btn--primary" id="loginButton">Log in</button>
+            </div>
 
-    <!-- Button -->
-    <button onclick="translateText()">Translate</button>
+            <div class="card">
+                <h2 class="card__title">Create account</h2>
+                <label class="field">
+                    <span class="field__label">Username</span>
+                    <input type="text" id="registerUsername" autocomplete="username" placeholder="Choose a username">
+                </label>
+                <label class="field">
+                    <span class="field__label">Password</span>
+                    <input type="password" id="registerPassword" autocomplete="new-password" placeholder="Choose a password">
+                </label>
+                <button class="btn btn--secondary" id="registerButton">Register</button>
+                <p class="form-status" id="registerStatus"></p>
+            </div>
+        </section>
 
-    <!-- Output area -->
-    <p><strong>Translation:</strong> <span id="translationResult">...</span></p>
-    
-    <!-- Button -->
-    <button onclick="SaveToDatabase()">Save</button>
+        <section id="dictionaryView" class="page">
+            <div class="card">
+                <label class="field">
+                    <span class="field__label">English</span>
+                    <textarea id="englishInput" placeholder="Write a phrase in English"></textarea>
+                </label>
+
+                <label class="field">
+                    <span class="field__label">Danish</span>
+                    <textarea id="danishInput" placeholder="Add your Danish translation"></textarea>
+                </label>
+
+                <button class="btn btn--primary" id="translateButton">Suggest translation</button>
+
+                <div class="card card--result">
+                    <span class="card__subtitle">Suggested translation</span>
+                    <p id="translationResult">...</p>
+                </div>
+
+                <button class="btn btn--secondary" id="saveButton">Save</button>
+            </div>
+
+            <section id="entriesSection" class="card">
+                <h2 class="card__title">Saved Words</h2>
+                <ul id="entriesList">
+                    <li>Loading saved entries...</li>
+                </ul>
+            </section>
+        </section>
+
+        <section id="practiseView" class="page">
+            <div class="card">
+                <h2 class="card__title">Practise</h2>
+                <p>Practise activities will appear here.</p>
+            </div>
+        </section>
+    </main>
+
+    <nav class="tab-bar tab-bar--hidden" id="tabBar">
+        <button class="tab tab--active" data-view="dictionary">
+            <span>Dictionary</span>
+        </button>
+        <button class="tab" data-view="practise">
+            <span>Practise</span>
+        </button>
+    </nav>
 
     <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>

@@ -1,0 +1,264 @@
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: "Inter", "Helvetica Neue", Arial, sans-serif;
+    background: #f5f5f7;
+    color: #1c1c1e;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.app {
+    flex: 1;
+    padding: 1.5rem 1.25rem 5rem;
+    max-width: 600px;
+    margin: 0 auto;
+    width: 100%;
+}
+
+.app-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    text-align: left;
+    margin-bottom: 1.5rem;
+    gap: 1rem;
+}
+
+.app-header h1 {
+    font-size: 1.8rem;
+    margin: 0;
+    color: #0f172a;
+}
+
+.app-title {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.3rem;
+}
+
+.app-greeting {
+    margin: 0;
+    font-size: 0.85rem;
+    color: #475569;
+}
+
+.link-button {
+    background: transparent;
+    border: none;
+    color: #2563eb;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.link-button--hidden {
+    visibility: hidden;
+    pointer-events: none;
+}
+
+.page {
+    display: none;
+    gap: 1.25rem;
+    flex-direction: column;
+}
+
+.page--active {
+    display: flex;
+}
+
+.card {
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 1.25rem;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.card--result {
+    background: #0f172a;
+    color: #ffffff;
+}
+
+.card__title {
+    margin: 0;
+    font-size: 1.25rem;
+}
+
+.card__subtitle {
+    font-size: 0.9rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    opacity: 0.7;
+}
+
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.field__label {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #475569;
+}
+
+.field input,
+.field textarea {
+    font-size: 1rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid #cbd5f5;
+    border-radius: 12px;
+    background: #f8fafc;
+    color: inherit;
+}
+
+.field textarea {
+    resize: vertical;
+    min-height: 96px;
+}
+
+.field input:focus,
+.field textarea:focus {
+    outline: 2px solid rgba(59, 130, 246, 0.8);
+    background: #ffffff;
+}
+
+.form-status {
+    min-height: 1.2rem;
+    margin: 0;
+    font-size: 0.85rem;
+    color: #ef4444;
+}
+
+.btn {
+    padding: 0.85rem 1.25rem;
+    border: none;
+    border-radius: 12px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.btn--primary {
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    color: #ffffff;
+    box-shadow: 0 10px 24px rgba(37, 99, 235, 0.3);
+}
+
+.btn--secondary {
+    background: #ffffff;
+    color: #2563eb;
+    border: 1px solid rgba(37, 99, 235, 0.4);
+}
+
+.btn:active {
+    transform: translateY(1px);
+    box-shadow: none;
+}
+
+#translationResult {
+    margin: 0;
+    font-size: 1.1rem;
+    line-height: 1.4;
+}
+
+#entriesSection ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+#entriesSection li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+    background: rgba(148, 163, 184, 0.15);
+    border-radius: 10px;
+    padding: 0.75rem 0.9rem;
+    color: #1e293b;
+    font-size: 0.95rem;
+}
+
+.entry-item__text {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.entry-item__delete {
+    background: rgba(239, 68, 68, 0.12);
+    color: #dc2626;
+    border: none;
+    border-radius: 10px;
+    padding: 0.4rem 0.75rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.entry-item__delete:hover,
+.entry-item__delete:focus {
+    background: rgba(239, 68, 68, 0.2);
+    outline: none;
+}
+
+.tab-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    background: rgba(15, 23, 42, 0.85);
+    backdrop-filter: blur(12px);
+    padding: 0.75rem 1rem calc(env(safe-area-inset-bottom) + 0.75rem);
+    gap: 1rem;
+}
+
+.tab {
+    background: transparent;
+    border: none;
+    color: rgba(226, 232, 240, 0.7);
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding: 0.75rem;
+    border-radius: 12px;
+    transition: background 0.2s ease, color 0.2s ease;
+}
+
+.tab--active {
+    background: rgba(226, 232, 240, 0.16);
+    color: #ffffff;
+}
+
+.tab-bar--hidden {
+    display: none;
+}
+
+@media (min-width: 768px) {
+    .app {
+        padding-top: 2rem;
+    }
+
+    .card {
+        padding: 1.75rem;
+    }
+}
