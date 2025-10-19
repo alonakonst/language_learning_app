@@ -1,12 +1,17 @@
 from functools import wraps
 
+import os
+
+from dotenv import load_dotenv
 from flask import Flask, render_template, request, jsonify, session, g
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from source import DictionaryEntry, User, database, llm_actions
 
+load_dotenv()
+
 app = Flask(__name__)
-app.secret_key = "dev-secret-key"
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-secret-key")
 
 
 def init_database():
