@@ -55,6 +55,22 @@ async function translateText() {
     }
 }
 
+function clearEntryInputs() {
+    const englishField = document.getElementById("englishInput");
+    const danishField = document.getElementById("danishInput");
+    const translationResult = document.getElementById("translationResult");
+
+    if (englishField) {
+        englishField.value = "";
+    }
+    if (danishField) {
+        danishField.value = "";
+    }
+    if (translationResult) {
+        translationResult.textContent = "";
+    }
+}
+
 async function SaveToDatabase() {
     const text = document.getElementById("englishInput")?.value ?? "";
     const translation = document.getElementById("danishInput")?.value ?? "";
@@ -85,6 +101,7 @@ async function SaveToDatabase() {
         const result = await response.json();
         if (result.status === "success") {
             fetchEntries();
+            clearEntryInputs();
         } else {
             alert("Failed to save entry.");
         }
