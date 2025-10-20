@@ -50,12 +50,20 @@
         <section id="dictionaryView" class="page">
             <div class="card">
                 <label class="field">
-                    <span class="field__label">English</span>
+                    <span class="field__label">Translation direction</span>
+                    <select id="translationDirection">
+                        <option value="en-da" selected>English → Danish</option>
+                        <option value="da-en">Danish → English</option>
+                    </select>
+                </label>
+
+                <label class="field">
+                    <span class="field__label" id="englishLabel">English (source)</span>
                     <textarea id="englishInput" placeholder="Write a phrase in English"></textarea>
                 </label>
 
                 <label class="field">
-                    <span class="field__label">Danish</span>
+                    <span class="field__label" id="danishLabel">Danish (translation)</span>
                     <textarea id="danishInput" placeholder="Add your Danish translation"></textarea>
                 </label>
 

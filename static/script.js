@@ -19,12 +19,56 @@ function clearEntriesList(message = "No entries saved yet.") {
     list.innerHTML = `<li>${message}</li>`;
 }
 
-async function translateText() {
-    const input = document.getElementById("englishInput")?.value ?? "";
-    const result = document.getElementById("translationResult");
-    const danishField = document.getElementById("danishInput");
+function getDirection() {
+    return document.getElementById("translationDirection")?.value ?? "en-da";
+}
 
-    if (input.trim() === "") {
+function getFieldsByDirection() {
+    const englishField = document.getElementById("englishInput");
+    const danishField = document.getElementById("danishInput");
+    const direction = getDirection();
+
+    return {
+        direction,
+        englishField,
+        danishField,
+        sourceField: direction === "en-da" ? englishField : danishField,
+        targetField: direction === "en-da" ? danishField : englishField,
+    };
+}
+
+function updateDirectionUI() {
+    const { direction, englishField, danishField } = getFieldsByDirection();
+    const englishLabel = document.getElementById("englishLabel");
+    const danishLabel = document.getElementById("danishLabel");
+
+    if (direction === "da-en") {
+        if (englishLabel) {
+            englishLabel.textContent = "English (translation)";
+        }
+        if (danishLabel) {
+            danishLabel.textContent = "Danish (source)";
+        }
+        englishField?.setAttribute("placeholder", "Translated English words");
+        danishField?.setAttribute("placeholder", "Write a phrase in Danish");
+    } else {
+        if (englishLabel) {
+            englishLabel.textContent = "English (source)";
+        }
+        if (danishLabel) {
+            danishLabel.textContent = "Danish (translation)";
+        }
+        englishField?.setAttribute("placeholder", "Write a phrase in English");
+        danishField?.setAttribute("placeholder", "Add your Danish translation");
+    }
+}
+
+async function translateText() {
+    const { direction, sourceField, targetField } = getFieldsByDirection();
+    const input = (sourceField?.value ?? "").trim();
+    const result = document.getElementById("translationResult");
+
+    if (input === "") {
         if (result) {
             result.textContent = "Please type something!";
         }
@@ -37,15 +81,18 @@ async function translateText() {
             headers: {
                 "Content-Type": "application/json",
             },
-            body: JSON.stringify({ text: input }),
+            body: JSON.stringify({ text: input, direction }),
         });
 
         const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.error || "Translation failed");
+        }
         if (result) {
             result.textContent = data.translation;
         }
-        if (danishField && (!danishField.value || danishField.value.trim() === "")) {
-            danishField.value = data.translation;
+        if (targetField) {
+            targetField.value = data.translation || "";
         }
     } catch (error) {
         console.error("Error:", error);
@@ -67,15 +114,16 @@ function clearEntryInputs() {
         danishField.value = "";
     }
     if (translationResult) {
-        translationResult.textContent = "";
+        translationResult.textContent = "...";
     }
 }
 
 async function SaveToDatabase() {
-    const text = document.getElementById("englishInput")?.value ?? "";
-    const translation = document.getElementById("danishInput")?.value ?? "";
+    const { englishField, danishField } = getFieldsByDirection();
+    const englishText = (englishField?.value ?? "").trim();
+    const danishText = (danishField?.value ?? "").trim();
 
-    if (!text.trim() || !translation.trim()) {
+    if (!englishText || !danishText) {
         alert("Please enter both English and Danish texts before saving.");
         return;
     }
@@ -87,8 +135,8 @@ async function SaveToDatabase() {
                 "Content-Type": "application/json",
             },
             body: JSON.stringify({
-                text: text,
-                translation: translation,
+                english: englishText,
+                danish: danishText,
             }),
         });
 
@@ -99,11 +147,16 @@ async function SaveToDatabase() {
         }
 
         const result = await response.json();
+        if (!response.ok) {
+            alert(result.error || "Failed to save entry.");
+            return;
+        }
+
         if (result.status === "success") {
             fetchEntries();
             clearEntryInputs();
         } else {
-            alert("Failed to save entry.");
+            alert(result.error || "Failed to save entry.");
         }
     } catch (error) {
         console.error("Error saving entry:", error);
@@ -359,6 +412,10 @@ function initApp() {
     document.getElementById("loginButton")?.addEventListener("click", loginUser);
     document.getElementById("registerButton")?.addEventListener("click", registerUser);
     document.getElementById("logoutButton")?.addEventListener("click", logoutUser);
+    document.getElementById("translationDirection")?.addEventListener("change", () => {
+        clearEntryInputs();
+        updateDirectionUI();
+    });
 
     const tabs = document.querySelectorAll(".tab");
     tabs.forEach((tab) => {
@@ -366,6 +423,7 @@ function initApp() {
     });
 
     clearEntriesList("Sign in to see your saved words.");
+    updateDirectionUI();
     checkAuthStatus();
 }
 

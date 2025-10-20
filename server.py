@@ -111,27 +111,38 @@ def logout():
 
 @app.route("/translate", methods=["POST"])
 def translate():
-    data = request.get_json()
-    content = data.get("text", "")
-    if not content.strip():
+    data = request.get_json() or {}
+    content = (data.get("text") or "").strip()
+    direction = (data.get("direction") or "en-da").lower()
+
+    if not content:
         return jsonify({"translation": "No text provided"})
-    
-    translation = llm_actions.get_translation(content)
+
+    if direction == "da-en":
+        translation = llm_actions.get_translation_to_english(content)
+    elif direction == "en-da":
+        translation = llm_actions.get_translation(content)
+    else:
+        return jsonify({"error": "Unsupported translation direction."}), 400
+
     return jsonify({"translation": translation})
 
 @app.route("/save", methods=["POST"])
 @login_required
 def add_entry():
-    data = request.get_json()
-    text = data.get('text')
-    translation = data.get('translation')
+    data = request.get_json() or {}
+    english_text = (data.get("english") or data.get("text") or "").strip()
+    danish_text = (data.get("danish") or data.get("translation") or "").strip()
     notes = ''
+
+    if not english_text or not danish_text:
+        return jsonify({"error": "English and Danish texts are required."}), 400
 
     # Example: save to database
     dictionary_entry = DictionaryEntry.create(
         user=g.user,
-        text=text,
-        translation=translation,
+        text=english_text,
+        translation=danish_text,
         notes=notes,
     )
 
