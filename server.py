@@ -6,9 +6,9 @@ from dotenv import load_dotenv
 from flask import Flask, render_template, request, jsonify, session, g
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from source import DictionaryEntry, User, database, llm_actions
-
 load_dotenv()
+
+from source import DictionaryEntry, User, database, llm_actions
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-secret-key")
