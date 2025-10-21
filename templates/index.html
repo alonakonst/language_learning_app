@@ -11,7 +11,6 @@
     <main class="app">
         <header class="app-header">
             <div class="app-title">
-                <h1>Language Buddy</h1>
                 <p class="app-greeting" id="userGreeting"></p>
             </div>
             <button class="link-button link-button--hidden" id="logoutButton">Log out</button>
@@ -88,7 +87,39 @@
         <section id="practiseView" class="page">
             <div class="card">
                 <h2 class="card__title">Practise</h2>
-                <p>Practise activities will appear here.</p>
+                <div class="practise__mode-toggle" role="tablist">
+                    <button
+                        type="button"
+                        class="practise__mode-button practise__mode-button--active"
+                        data-mode="regular"
+                    >
+                        Regular practise
+                    </button>
+                    <button
+                        type="button"
+                        class="practise__mode-button"
+                        data-mode="ai"
+                    >
+                        AI practise
+                    </button>
+                </div>
+
+                <div class="practise__section" id="practiseRegularSection">
+                    <p class="practise__empty-message" id="practiseEmptyMessage">
+                        Save at least four entries to start practising.
+                    </p>
+                    <div class="practise__body practise__body--hidden" id="practiseBody">
+                        <p class="practise__prompt" id="practisePrompt">Loading…</p>
+                        <div class="practise__options" id="practiseOptions"></div>
+                        <p class="practise__feedback" id="practiseFeedback"></p>
+                    </div>
+                </div>
+
+                <div class="practise__section practise__section--hidden" id="practiseAiSection">
+                    <p class="practise__empty-message">
+                        AI practise is coming soon.
+                    </p>
+                </div>
             </div>
         </section>
     </main>

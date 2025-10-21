@@ -3,6 +3,197 @@ const authState = {
     username: null,
 };
 
+const practiseState = {
+    entries: [],
+    currentQuestion: null,
+    allowSelection: true,
+    mode: "regular",
+};
+
+function shuffle(array) {
+    for (let i = array.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+    }
+    return array;
+}
+
+function resetPractiseState(message = "Sign in to start practising.") {
+    practiseState.entries = [];
+    practiseState.currentQuestion = null;
+    practiseState.allowSelection = true;
+
+    const emptyMessage = document.getElementById("practiseEmptyMessage");
+    const practiseBody = document.getElementById("practiseBody");
+    const prompt = document.getElementById("practisePrompt");
+    const options = document.getElementById("practiseOptions");
+    const feedback = document.getElementById("practiseFeedback");
+
+    emptyMessage?.classList.remove("is-hidden");
+    if (emptyMessage) {
+        emptyMessage.textContent = message;
+    }
+    practiseBody?.classList.add("practise__body--hidden");
+    if (prompt) {
+        prompt.textContent = "…";
+    }
+    if (options) {
+        options.innerHTML = "";
+    }
+    if (feedback) {
+        feedback.textContent = "";
+    }
+}
+
+function setPractiseEntries(rawEntries) {
+    const usableEntries = (rawEntries || []).filter(
+        (entry) => entry && (entry.text || "").trim() && (entry.translation || "").trim()
+    );
+
+    practiseState.entries = usableEntries;
+    practiseState.currentQuestion = null;
+    practiseState.allowSelection = true;
+
+    const emptyMessage = document.getElementById("practiseEmptyMessage");
+    const practiseBody = document.getElementById("practiseBody");
+
+    if (!emptyMessage || !practiseBody) {
+        return;
+    }
+
+    if (usableEntries.length < 4) {
+        emptyMessage.textContent =
+            usableEntries.length === 0
+                ? "Save some words in your dictionary to start practising."
+                : "Add at least four saved words to start practising.";
+        emptyMessage.classList.remove("is-hidden");
+        practiseBody.classList.add("practise__body--hidden");
+        return;
+    }
+
+    emptyMessage.classList.add("is-hidden");
+    practiseBody.classList.remove("practise__body--hidden");
+    if (practiseState.mode === "regular") {
+        preparePractiseQuestion();
+    }
+}
+
+function preparePractiseQuestion() {
+    if (practiseState.mode !== "regular" || practiseState.entries.length < 4) {
+        return;
+    }
+
+    const entries = [...practiseState.entries];
+    const correct = entries[Math.floor(Math.random() * entries.length)];
+    const distractors = shuffle(entries.filter((entry) => entry.id !== correct.id)).slice(0, 3);
+    const options = shuffle([correct, ...distractors]).map((entry) => ({
+        id: entry.id,
+        label: entry.text,
+    }));
+
+    practiseState.currentQuestion = {
+        prompt: correct.translation,
+        correctId: correct.id,
+        options,
+    };
+    practiseState.allowSelection = true;
+    renderPractiseQuestion();
+}
+
+function renderPractiseQuestion() {
+    const question = practiseState.currentQuestion;
+    const prompt = document.getElementById("practisePrompt");
+    const options = document.getElementById("practiseOptions");
+    const feedback = document.getElementById("practiseFeedback");
+
+    if (practiseState.mode !== "regular" || !question || !prompt || !options || !feedback) {
+        return;
+    }
+
+    prompt.textContent = `What does ${question.prompt} mean?`;
+    feedback.textContent = "";
+    options.innerHTML = "";
+
+    question.options.forEach((option) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "practise__option";
+        button.textContent = option.label;
+        button.addEventListener("click", () => handlePractiseSelection(option.id, button));
+        options.appendChild(button);
+    });
+}
+
+function handlePractiseSelection(optionId, button) {
+    if (!practiseState.currentQuestion || !practiseState.allowSelection) {
+        return;
+    }
+
+    const feedback = document.getElementById("practiseFeedback");
+    const options = document.getElementById("practiseOptions");
+    if (!feedback || !options) {
+        return;
+    }
+
+    if (optionId === practiseState.currentQuestion.correctId) {
+        practiseState.allowSelection = false;
+        feedback.textContent = "Correct! Here's the next one…";
+        Array.from(options.children).forEach((child) => child.setAttribute("disabled", "true"));
+        button.classList.add("practise__option--correct");
+        setTimeout(() => {
+            Array.from(options.children).forEach((child) => child.removeAttribute("disabled"));
+            preparePractiseQuestion();
+        }, 900);
+    } else {
+        button.classList.add("practise__option--incorrect");
+        feedback.textContent = "Not quite. Try again.";
+        setTimeout(() => button.classList.remove("practise__option--incorrect"), 800);
+    }
+}
+
+function setPractiseMode(mode) {
+    if (mode !== "regular" && mode !== "ai") {
+        return;
+    }
+
+    const previousMode = practiseState.mode;
+    practiseState.mode = mode;
+
+    document.querySelectorAll(".practise__mode-button").forEach((button) => {
+        button.classList.toggle(
+            "practise__mode-button--active",
+            button.dataset.mode === mode
+        );
+    });
+
+    const regularSection = document.getElementById("practiseRegularSection");
+    const aiSection = document.getElementById("practiseAiSection");
+
+    regularSection?.classList.toggle("practise__section--hidden", mode !== "regular");
+    aiSection?.classList.toggle("practise__section--hidden", mode !== "ai");
+
+    if (mode === "regular") {
+        if (practiseState.entries.length >= 4) {
+            if (practiseState.currentQuestion && previousMode === "regular") {
+                renderPractiseQuestion();
+            } else {
+                preparePractiseQuestion();
+            }
+        }
+    }
+}
+
+function initPractiseModeToggle() {
+    document.querySelectorAll(".practise__mode-button").forEach((button) => {
+        button.addEventListener("click", () => {
+            const mode = button.dataset.mode;
+            if (mode) {
+                setPractiseMode(mode);
+            }
+        });
+    });
+}
+
 function showStatus(element, message, isError = true) {
     if (!element) {
         return;
@@ -188,6 +379,7 @@ async function fetchEntries() {
 
 function renderEntries(entries) {
     const list = document.getElementById("entriesList");
+    setPractiseEntries(entries);
     if (!list) {
         return;
     }
@@ -260,6 +452,8 @@ function updateAuthState(authenticated, username) {
         logoutButton?.classList.add("link-button--hidden");
         tabBar?.classList.add("tab-bar--hidden");
         clearEntriesList("Sign in to see your saved words.");
+        resetPractiseState("Sign in to start practising.");
+        setPractiseMode("regular");
         switchView("auth");
     }
 }
@@ -422,9 +616,12 @@ function initApp() {
         tab.addEventListener("click", () => switchView(tab.dataset.view));
     });
 
+    initPractiseModeToggle();
     clearEntriesList("Sign in to see your saved words.");
     updateDirectionUI();
     checkAuthStatus();
+    resetPractiseState("Sign in to start practising.");
+    setPractiseMode("regular");
 }
 
 document.addEventListener("DOMContentLoaded", initApp);

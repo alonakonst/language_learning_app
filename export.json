@@ -4,6 +4,11 @@
       "id": 1,
       "username": "alona",
       "password_hash": "scrypt:32768:8:1$ryUdNa8Tge6IAVh1$12818ae0c837ad31399c369d96d3ce101a5706641499a215506bad8fcdfa3e8b1499128f30f6290fe02e4ae45f3a712c526c55530ad879820180496dd4b6a816"
+    },
+    {
+      "id": 2,
+      "username": "ROKASISTHEBEST",
+      "password_hash": "scrypt:32768:8:1$rE8nQ0g2BzJ5eTPI$f207c2d75b89f8805ee9fc2e6c8af69b4804795ff514480b64f067d4f872aab80193044a0a00b2661e131162991b3562e8011a75b597910b1e6f573fad152c66"
     }
   ],
   "entries": [
@@ -47,6 +52,34 @@
       "user_id": 1,
       "text": "ever",
       "translation": "nogensinde",
+      "notes": ""
+    },
+    {
+      "id": 9,
+      "user_id": 1,
+      "text": "save",
+      "translation": "gem",
+      "notes": ""
+    },
+    {
+      "id": 10,
+      "user_id": 1,
+      "text": "A book",
+      "translation": "en bog",
+      "notes": ""
+    },
+    {
+      "id": 11,
+      "user_id": 1,
+      "text": "A cat",
+      "translation": "en kat",
+      "notes": ""
+    },
+    {
+      "id": 12,
+      "user_id": 2,
+      "text": "Soon",
+      "translation": "Snart",
       "notes": ""
     }
   ]
