@@ -116,9 +116,17 @@
                 </div>
 
                 <div class="practise__section practise__section--hidden" id="practiseAiSection">
-                    <p class="practise__empty-message">
-                        AI practise is coming soon.
+                    <p class="practise__empty-message" id="practiseAiEmptyMessage">
+                        Save at least one entry to unlock AI practise.
                     </p>
+                    <div class="practise__body practise__body--hidden" id="practiseAiBody">
+                        <p class="practise__prompt" id="practiseAiPrompt">Loading…</p>
+                        <div class="practise__options practise__options--cards" id="practiseAiOptions"></div>
+                        <p class="practise__feedback" id="practiseAiFeedback"></p>
+                        <button class="btn btn--secondary practise__next-button" id="practiseAiNextButton">
+                            New flashcards
+                        </button>
+                    </div>
                 </div>
             </div>
         </section>

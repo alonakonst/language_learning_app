@@ -181,6 +181,76 @@ def delete_entry(entry_id: int):
     return jsonify({"status": "success"})
 
 
+@app.route("/practise/ai", methods=["POST"])
+@login_required
+def ai_practise():
+    data = request.get_json() or {}
+    entry_id = data.get("entry_id")
+    if not entry_id:
+        return jsonify({"error": "entry_id is required."}), 400
+
+    entry = DictionaryEntry.get_or_none(
+        (DictionaryEntry.id == entry_id) & (DictionaryEntry.user == g.user)
+    )
+    if entry is None:
+        return jsonify({"error": "Entry not found."}), 404
+
+    target_text = (entry.text or "").strip()
+    target_translation = (entry.translation or "").strip()
+    if not target_text or not target_translation:
+        return jsonify({"error": "The selected entry is missing a translation."}), 400
+
+    try:
+        ai_set = llm_actions.generate_ai_practise_cards(target_text, target_translation)
+    except ValueError as exc:
+        return jsonify({"error": str(exc) or "Unable to prepare AI practise."}), 502
+    except Exception:
+        app.logger.exception("Failed to generate AI practise for entry %s", entry_id)
+        return jsonify({"error": "Unable to prepare AI practise."}), 500
+
+    options = [
+        {
+            "id": f"entry-{entry.id}",
+            "label": target_text,
+            "is_correct": True,
+            "metadata": {
+                "translation": target_translation,
+                "note": "",
+                "source": "saved",
+            },
+        }
+    ]
+
+    for index, distractor in enumerate(ai_set["distractors"]):
+        label = (distractor.get("text") or "").strip()
+        if not label:
+            continue
+        options.append(
+            {
+                "id": f"distractor-{index}",
+                "label": label,
+                "is_correct": False,
+                "metadata": {
+                    "translation": (distractor.get("translation") or "").strip(),
+                    "note": (distractor.get("note") or "").strip(),
+                    "source": "ai",
+                },
+            }
+        )
+
+    if len(options) < 4:
+        return jsonify({"error": "Unable to prepare enough flashcards."}), 502
+
+    return jsonify(
+        {
+            "prompt": target_translation,
+            "part_of_speech": ai_set["part_of_speech"],
+            "target_text": target_text,
+            "options": options,
+        }
+    )
+
+
 if __name__ == "__main__":
     import os
     port = int(os.environ.get("PORT", 5000))

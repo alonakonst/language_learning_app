@@ -8,6 +8,9 @@ const practiseState = {
     currentQuestion: null,
     allowSelection: true,
     mode: "regular",
+    aiQuestion: null,
+    aiAllowSelection: true,
+    aiLoading: false,
 };
 
 function shuffle(array) {
@@ -22,12 +25,20 @@ function resetPractiseState(message = "Sign in to start practising.") {
     practiseState.entries = [];
     practiseState.currentQuestion = null;
     practiseState.allowSelection = true;
+    practiseState.aiQuestion = null;
+    practiseState.aiAllowSelection = true;
+    practiseState.aiLoading = false;
 
     const emptyMessage = document.getElementById("practiseEmptyMessage");
     const practiseBody = document.getElementById("practiseBody");
     const prompt = document.getElementById("practisePrompt");
     const options = document.getElementById("practiseOptions");
     const feedback = document.getElementById("practiseFeedback");
+    const aiEmptyMessage = document.getElementById("practiseAiEmptyMessage");
+    const aiBody = document.getElementById("practiseAiBody");
+    const aiPrompt = document.getElementById("practiseAiPrompt");
+    const aiOptions = document.getElementById("practiseAiOptions");
+    const aiFeedback = document.getElementById("practiseAiFeedback");
 
     emptyMessage?.classList.remove("is-hidden");
     if (emptyMessage) {
@@ -42,6 +53,21 @@ function resetPractiseState(message = "Sign in to start practising.") {
     }
     if (feedback) {
         feedback.textContent = "";
+    }
+
+    if (aiEmptyMessage) {
+        aiEmptyMessage.textContent = message;
+        aiEmptyMessage.classList.remove("is-hidden");
+    }
+    aiBody?.classList.add("practise__body--hidden");
+    if (aiPrompt) {
+        aiPrompt.textContent = "…";
+    }
+    if (aiOptions) {
+        aiOptions.innerHTML = "";
+    }
+    if (aiFeedback) {
+        aiFeedback.textContent = "";
     }
 }
 
@@ -75,6 +101,37 @@ function setPractiseEntries(rawEntries) {
     practiseBody.classList.remove("practise__body--hidden");
     if (practiseState.mode === "regular") {
         preparePractiseQuestion();
+    }
+
+    updateAiPractiseAvailability();
+}
+
+function updateAiPractiseAvailability() {
+    const aiEmptyMessage = document.getElementById("practiseAiEmptyMessage");
+    const aiBody = document.getElementById("practiseAiBody");
+
+    if (!aiEmptyMessage || !aiBody) {
+        return;
+    }
+
+    if (practiseState.entries.length === 0) {
+        aiEmptyMessage.textContent = "Save at least one entry to unlock AI practise.";
+        aiEmptyMessage.classList.remove("is-hidden");
+        aiBody.classList.add("practise__body--hidden");
+        practiseState.aiQuestion = null;
+        practiseState.aiAllowSelection = true;
+        return;
+    }
+
+    aiEmptyMessage.classList.add("is-hidden");
+    aiBody.classList.remove("practise__body--hidden");
+
+    if (
+        practiseState.mode === "ai" &&
+        !practiseState.aiQuestion &&
+        !practiseState.aiLoading
+    ) {
+        prepareAiPractiseQuestion();
     }
 }
 
@@ -151,6 +208,179 @@ function handlePractiseSelection(optionId, button) {
     }
 }
 
+function setAiPractiseLoading(message = "Asking AI for matching flashcards…") {
+    const prompt = document.getElementById("practiseAiPrompt");
+    const options = document.getElementById("practiseAiOptions");
+    const feedback = document.getElementById("practiseAiFeedback");
+    const nextButton = document.getElementById("practiseAiNextButton");
+
+    if (prompt) {
+        prompt.textContent = message;
+    }
+    if (options) {
+        options.innerHTML = "";
+    }
+    if (feedback) {
+        feedback.textContent = "";
+    }
+    nextButton?.setAttribute("disabled", "true");
+}
+
+function showAiPractiseError(message) {
+    const prompt = document.getElementById("practiseAiPrompt");
+    const feedback = document.getElementById("practiseAiFeedback");
+    const nextButton = document.getElementById("practiseAiNextButton");
+
+    if (prompt) {
+        prompt.textContent = message;
+    }
+    if (feedback) {
+        feedback.textContent = "";
+    }
+    nextButton?.removeAttribute("disabled");
+}
+
+async function prepareAiPractiseQuestion() {
+    if (
+        practiseState.mode !== "ai" ||
+        practiseState.entries.length === 0 ||
+        practiseState.aiLoading ||
+        !authState.authenticated
+    ) {
+        return;
+    }
+
+    practiseState.aiLoading = true;
+    practiseState.aiQuestion = null;
+    setAiPractiseLoading();
+
+    const entries = [...practiseState.entries];
+    const target = entries[Math.floor(Math.random() * entries.length)];
+
+    try {
+        const response = await fetch("/practise/ai", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ entry_id: target.id }),
+        });
+
+        if (response.status === 401) {
+            updateAuthState(false, null);
+            return;
+        }
+
+        const data = await response.json();
+        if (!response.ok) {
+            showAiPractiseError(data.error || "AI practise is unavailable right now.");
+            return;
+        }
+
+        if (practiseState.mode !== "ai") {
+            return;
+        }
+
+        const mappedOptions = (data.options || []).map((option) => ({
+            id: option.id,
+            label: option.label,
+            isCorrect: Boolean(option.is_correct),
+            metadata: option.metadata || {},
+        }));
+
+        if (mappedOptions.length < 4) {
+            showAiPractiseError("The AI did not return enough flashcards. Try again.");
+            return;
+        }
+
+        practiseState.aiQuestion = {
+            entryId: target.id,
+            prompt: data.prompt || target.translation || "",
+            partOfSpeech: (data.part_of_speech || "word").toLowerCase(),
+            options: shuffle(mappedOptions),
+        };
+        practiseState.aiAllowSelection = true;
+        renderAiPractiseQuestion();
+    } catch (error) {
+        console.error("Error preparing AI practise:", error);
+        showAiPractiseError("Unable to contact the AI practise service.");
+    } finally {
+        practiseState.aiLoading = false;
+    }
+}
+
+function renderAiPractiseQuestion() {
+    const question = practiseState.aiQuestion;
+    const prompt = document.getElementById("practiseAiPrompt");
+    const options = document.getElementById("practiseAiOptions");
+    const feedback = document.getElementById("practiseAiFeedback");
+    const nextButton = document.getElementById("practiseAiNextButton");
+
+    if (practiseState.mode !== "ai" || !question || !prompt || !options || !feedback) {
+        return;
+    }
+
+    const partOfSpeech = question.partOfSpeech || "word";
+    const posLabel = partOfSpeech.charAt(0).toUpperCase() + partOfSpeech.slice(1);
+
+    prompt.textContent = `Pick the ${partOfSpeech} that matches "${question.prompt}".`;
+    feedback.textContent = "";
+    options.innerHTML = "";
+
+    question.options.forEach((option) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "practise__card";
+
+        const meta = document.createElement("span");
+        meta.className = "practise__card-meta";
+        meta.textContent = posLabel;
+
+        const label = document.createElement("span");
+        label.className = "practise__card-label";
+        label.textContent = option.label;
+
+        button.addEventListener("click", () => handleAiPractiseSelection(option.id, button));
+        button.appendChild(meta);
+        button.appendChild(label);
+        options.appendChild(button);
+    });
+
+    nextButton?.removeAttribute("disabled");
+}
+
+function handleAiPractiseSelection(optionId, button) {
+    if (!practiseState.aiQuestion || !practiseState.aiAllowSelection) {
+        return;
+    }
+
+    const feedback = document.getElementById("practiseAiFeedback");
+    const options = document.getElementById("practiseAiOptions");
+    if (!feedback || !options) {
+        return;
+    }
+
+    const chosen = practiseState.aiQuestion.options.find((opt) => opt.id === optionId);
+    if (!chosen) {
+        return;
+    }
+
+    if (chosen.isCorrect) {
+        practiseState.aiAllowSelection = false;
+        feedback.textContent = "Nice! That's your word. Loading the next flashcards…";
+        Array.from(options.children).forEach((child) => child.setAttribute("disabled", "true"));
+        button.classList.add("practise__card--correct");
+        setTimeout(() => {
+            Array.from(options.children).forEach((child) => child.removeAttribute("disabled"));
+            prepareAiPractiseQuestion();
+        }, 1100);
+    } else {
+        button.classList.add("practise__card--incorrect");
+        feedback.textContent = "That's one of the new words. Try again.";
+        setTimeout(() => button.classList.remove("practise__card--incorrect"), 900);
+    }
+}
+
 function setPractiseMode(mode) {
     if (mode !== "regular" && mode !== "ai") {
         return;
@@ -179,6 +409,15 @@ function setPractiseMode(mode) {
             } else {
                 preparePractiseQuestion();
             }
+        }
+    } else if (mode === "ai") {
+        updateAiPractiseAvailability();
+        if (
+            practiseState.entries.length > 0 &&
+            !practiseState.aiQuestion &&
+            !practiseState.aiLoading
+        ) {
+            prepareAiPractiseQuestion();
         }
     }
 }
@@ -610,6 +849,9 @@ function initApp() {
         clearEntryInputs();
         updateDirectionUI();
     });
+    document
+        .getElementById("practiseAiNextButton")
+        ?.addEventListener("click", () => prepareAiPractiseQuestion());
 
     const tabs = document.querySelectorAll(".tab");
     tabs.forEach((tab) => {
