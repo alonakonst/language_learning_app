@@ -1,19 +1,28 @@
 from functools import wraps
 
 import os
+import json
 
 from dotenv import load_dotenv
-from flask import Flask, render_template, request, jsonify, session, g
+from flask import Flask, render_template, request, jsonify, session, g, make_response
 from werkzeug.security import check_password_hash, generate_password_hash
+from google.cloud import texttospeech
 
 load_dotenv()
 
 from source import DictionaryEntry, User, database, llm_actions
 
-import json
-
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-secret-key")
+
+tts_client = None
+
+
+def _get_tts_client():
+    global tts_client
+    if tts_client is None:
+        tts_client = texttospeech.TextToSpeechClient()
+    return tts_client
 
 
 def init_database():
@@ -37,7 +46,6 @@ def close_database(_exc):
 
 init_database()
 
-
 @app.before_request
 def load_logged_in_user():
     user_id = session.get("user_id")
@@ -55,6 +63,58 @@ def login_required(view):
         return view(*args, **kwargs)
 
     return wrapped_view
+
+
+@app.route("/entries/<int:entry_id>/pronunciation", methods=["GET"])
+@login_required
+def entry_pronunciation(entry_id: int):
+    entry = DictionaryEntry.get_or_none(
+        (DictionaryEntry.id == entry_id) & (DictionaryEntry.user == g.user)
+    )
+    if entry is None:
+        return jsonify({"error": "Entry not found."}), 404
+
+    kind = (request.args.get("kind") or "").strip().lower()
+
+    if kind == "example":
+        danish_text = ""
+        try:
+            cached = json.loads(entry.notes or "")
+            if isinstance(cached, dict):
+                danish_text = (cached.get("example_da") or cached.get("danish") or "").strip()
+        except Exception:
+            danish_text = ""
+        if not danish_text:
+            return jsonify({"error": "No Danish example available for this entry."}), 404
+    else:
+        danish_text = (entry.translation or "").strip()
+
+    if not danish_text:
+        return jsonify({"error": "No Danish text available for this entry."}), 400
+
+    try:
+        synthesis_input = texttospeech.SynthesisInput(text=danish_text)
+        voice = texttospeech.VoiceSelectionParams(
+            language_code="da-DK",
+            ssml_gender=texttospeech.SsmlVoiceGender.FEMALE,
+        )
+        audio_config = texttospeech.AudioConfig(
+            audio_encoding=texttospeech.AudioEncoding.MP3
+        )
+        response = _get_tts_client().synthesize_speech(
+            input=synthesis_input,
+            voice=voice,
+            audio_config=audio_config,
+        )
+        audio_content = response.audio_content
+        flask_response = make_response(audio_content)
+        flask_response.headers["Content-Type"] = "audio/mpeg"
+        flask_response.headers["Content-Length"] = str(len(audio_content))
+        flask_response.headers["Cache-Control"] = "no-store"
+        return flask_response
+    except Exception:
+        app.logger.exception("Failed to synthesize speech for entry %s", entry_id)
+        return jsonify({"error": "Pronunciation is unavailable right now."}), 502
 
 
 @app.route("/")

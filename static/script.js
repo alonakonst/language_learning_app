@@ -787,6 +787,8 @@ function showEntryDetails(entry) {
     const exampleDanish = document.getElementById("entryModalExampleDanish");
     const exampleEnglish = document.getElementById("entryModalExampleEnglish");
     const exampleButton = document.getElementById("entryModalExampleButton");
+    const pronounceButton = document.getElementById("entryModalPronounceButton");
+    const examplePronounceButton = document.getElementById("entryModalExamplePronounceButton");
 
     if (
         !modal ||
@@ -795,6 +797,8 @@ function showEntryDetails(entry) {
         !exampleDanish ||
         !exampleEnglish ||
         !exampleButton ||
+        !pronounceButton ||
+        !examplePronounceButton ||
         !entry
     ) {
         return;
@@ -804,8 +808,14 @@ function showEntryDetails(entry) {
     entryModalState.entryText = toDisplayText(entry.translation || entry.text);
     entryModalState.example = entry.example || null;
 
-    danishLine.textContent = formatDanishText(entry.translation, "No Danish text yet");
+    const danishWord = toDisplayText(entry.translation);
+    danishLine.innerHTML = danishWord
+        ? `🇩🇰 <strong>${escapeHtml(danishWord)}</strong>`
+        : "🇩🇰 No Danish text yet";
     englishLine.textContent = toDisplayText(entry.text) || "No English text yet";
+    pronounceButton.dataset.entryId = entry.id;
+    pronounceButton.classList.toggle("is-hidden", !entry.translation);
+    examplePronounceButton.dataset.entryId = entry.id;
 
     renderEntryExample(entryModalState.example);
     exampleButton.removeAttribute("disabled");
@@ -818,20 +828,26 @@ function renderEntryExample(example) {
     const exampleDanish = document.getElementById("entryModalExampleDanish");
     const exampleEnglish = document.getElementById("entryModalExampleEnglish");
     const exampleButton = document.getElementById("entryModalExampleButton");
+    const examplePronounceButton = document.getElementById("entryModalExamplePronounceButton");
 
-    if (!exampleDanish || !exampleEnglish || !exampleButton) {
+    if (!exampleDanish || !exampleEnglish || !exampleButton || !examplePronounceButton) {
         return;
     }
 
     if (example && (example.danish || example.english)) {
-        exampleDanish.textContent = formatDanishText(example.danish);
+        exampleDanish.innerHTML = highlightTarget(
+            formatDanishText(example.danish),
+            entryModalState.entryText
+        );
         exampleEnglish.textContent = example.english || "";
         exampleButton.classList.add("is-hidden");
+        examplePronounceButton.classList.toggle("is-hidden", !example.danish);
     } else {
         exampleDanish.textContent = formatDanishText("", "No example yet.");
         exampleEnglish.textContent = "";
         exampleButton.textContent = "Generate example";
         exampleButton.classList.remove("is-hidden");
+        examplePronounceButton.classList.add("is-hidden");
     }
 }
 
@@ -881,6 +897,42 @@ async function showEntryExample() {
     } finally {
         renderEntryExample(entryModalState.example);
         exampleButton.removeAttribute("disabled");
+    }
+}
+
+async function playPronunciation(entryId, kind = "word") {
+    const button =
+        kind === "example"
+            ? document.getElementById("entryModalExamplePronounceButton")
+            : document.getElementById("entryModalPronounceButton");
+
+    if (!entryId || !button) {
+        return;
+    }
+
+    button.setAttribute("disabled", "true");
+    try {
+        const suffix = kind === "example" ? "?kind=example" : "";
+        const response = await fetch(`/entries/${entryId}/pronunciation${suffix}`);
+
+        if (response.status === 401) {
+            updateAuthState(false, null);
+            return;
+        }
+
+        if (!response.ok) {
+            console.error("Pronunciation fetch failed");
+            return;
+        }
+
+        const blob = await response.blob();
+        const audioUrl = URL.createObjectURL(blob);
+        const audio = new Audio(audioUrl);
+        audio.play().catch((err) => console.error("Audio playback failed", err));
+    } catch (error) {
+        console.error("Error playing pronunciation:", error);
+    } finally {
+        button.removeAttribute("disabled");
     }
 }
 
@@ -1040,6 +1092,24 @@ function initApp() {
     document.getElementById("registerButton")?.addEventListener("click", registerUser);
     document.getElementById("logoutButton")?.addEventListener("click", logoutUser);
     document.getElementById("entryModalExampleButton")?.addEventListener("click", showEntryExample);
+    document.getElementById("entryModalPronounceButton")?.addEventListener("click", () => {
+        const entryId = Number(
+            document.getElementById("entryModalPronounceButton")?.dataset.entryId || 0
+        );
+        if (entryId) {
+            playPronunciation(entryId);
+        }
+    });
+    document
+        .getElementById("entryModalExamplePronounceButton")
+        ?.addEventListener("click", () => {
+            const entryId = Number(
+                document.getElementById("entryModalExamplePronounceButton")?.dataset.entryId || 0
+            );
+            if (entryId) {
+                playPronunciation(entryId, "example");
+            }
+        });
     document.getElementById("entryModalClose")?.addEventListener("click", hideEntryModal);
     document.getElementById("entryModal")?.addEventListener("click", (event) => {
         if (event.target.id === "entryModal") {
