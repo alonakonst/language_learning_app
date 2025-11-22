@@ -2,9 +2,12 @@ import json
 import os
 import re
 
+from google.cloud import translate_v2 as translate
 from openai import OpenAI
 
 client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+_translate_client = None
+GOOGLE_PROJECT_ID = os.environ.get("GOOGLE_CLOUD_PROJECT", "inlaid-antler-478921-f3")
 
 
 def _chat(messages):
@@ -26,11 +29,37 @@ def _translate(content: str, instruction: str) -> str:
 
 
 def get_translation(content):
-    return _translate(content, "Translate to Danish. Give only the translation")
+    return translate_google(content, "da")
 
 
 def get_translation_to_english(content):
-    return _translate(content, "Translate to English. Give only the translation")
+    return translate_google(content, "en")
+
+
+def _get_translate_client():
+    global _translate_client
+    if _translate_client is None:
+        _translate_client = translate.Client()
+    return _translate_client
+
+
+def translate_google(content: str, target_language: str) -> str:
+    trimmed = (content or "").strip()
+    if not trimmed:
+        return ""
+
+    try:
+        result = _get_translate_client().translate(
+            trimmed, target_language=target_language, format_="text"
+        )
+    except Exception as exc:  # pragma: no cover - external API failure
+        raise RuntimeError("Translation service unavailable.") from exc
+
+    translated = (result.get("translatedText") or "").strip()
+    if not translated:
+        raise RuntimeError("Translation service returned an empty result.")
+
+    return translated
 
 
 def _extract_json_object(raw_text: str):
@@ -116,3 +145,37 @@ def generate_ai_practise_cards(target_text: str, target_translation: str):
         "part_of_speech": (data.get("part_of_speech") or "word").strip().lower(),
         "distractors": distractors[:3],
     }
+
+
+def generate_usage_example(target_text: str, target_translation: str) -> str:
+    """
+    Return a medium-length Danish sentence or brief two-line dialogue that uses the
+    target Danish word or phrase naturally.
+    """
+
+    target_clean = (target_text or "").strip()
+    translation_clean = (target_translation or "").strip()
+    if not target_clean or not translation_clean:
+        raise ValueError("The entry needs both English and Danish to build an example.")
+
+    system_prompt = (
+        "You are a concise Danish language tutor. Provide only one natural example in Danish "
+        "that uses the target Danish word/phrase at least once exactly as provided. Keep it "
+        "under 35 words. "
+        "You may use a short two-line dialogue if it feels natural. "
+        "Do not prepend explanations or quotes. Output Danish only."
+    )
+
+    user_prompt = (
+        "TARGET (EN): {target}\n"
+        "TARGET (DA): {translation}\n\n"
+        "Write a single Danish example (sentence or very short dialogue) that naturally includes "
+        "the Danish target exactly as provided. Keep the tone everyday and concise."
+    ).format(target=target_clean, translation=translation_clean)
+
+    return _chat(
+        [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ]
+    ).strip()

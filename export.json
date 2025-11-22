@@ -21,405 +21,74 @@
       "password_hash": "scrypt:32768:8:1$Q2gBTQ7bQ7JI8NIr$1a884b7c6ff93d56c9b5069eed460d634363748eef1823138e48aca28071536b47187589ce6335dc6fa01d4bfef8ebd3efd81e78a1b6c23001a7cc7917cb9282"
     }
   ],
+ 
   "entries": [
-    {
-      "id": 1,
-      "user_id": 1,
-      "text": "cat",
-      "translation": "kat",
-      "notes": ""
-    },
-    {
-      "id": 4,
-      "user_id": 1,
-      "text": "phone",
-      "translation": "telefon",
-      "notes": ""
-    },
-    {
-      "id": 5,
-      "user_id": 1,
-      "text": "works",
-      "translation": "v\u00e6rker",
-      "notes": ""
-    },
-    {
-      "id": 6,
-      "user_id": 1,
-      "text": "new word",
-      "translation": "nyt ord",
-      "notes": ""
-    },
-    {
-      "id": 7,
-      "user_id": 1,
-      "text": "hey",
-      "translation": "hej",
-      "notes": ""
-    },
-    {
-      "id": 8,
-      "user_id": 1,
-      "text": "ever",
-      "translation": "nogensinde",
-      "notes": ""
-    },
-    {
-      "id": 9,
-      "user_id": 1,
-      "text": "save",
-      "translation": "gem",
-      "notes": ""
-    },
-    {
-      "id": 10,
-      "user_id": 1,
-      "text": "A book",
-      "translation": "en bog",
-      "notes": ""
-    },
-    {
-      "id": 11,
-      "user_id": 1,
-      "text": "A cat",
-      "translation": "en kat",
-      "notes": ""
-    },
-    {
-      "id": 12,
-      "user_id": 2,
-      "text": "Soon",
-      "translation": "Snart",
-      "notes": ""
-    },
-    {
-      "id": 13,
-      "user_id": 2,
-      "text": "listen",
-      "translation": "lytte",
-      "notes": ""
-    },
-    {
-      "id": 14,
-      "user_id": 2,
-      "text": "Actually",
-      "translation": "Egentlig",
-      "notes": ""
-    },
-    {
-      "id": 15,
-      "user_id": 2,
-      "text": "Finished",
-      "translation": "F\u00e6rdig",
-      "notes": ""
-    },
-    {
-      "id": 16,
-      "user_id": 3,
-      "text": "I want hot chocolate",
-      "translation": "Jeg vil have varm chokolade",
-      "notes": ""
-    },
-    {
-      "id": 17,
-      "user_id": 3,
-      "text": "Room",
-      "translation": "V\u00e6relse",
-      "notes": ""
-    },
-    {
-      "id": 18,
-      "user_id": 3,
-      "text": "Kiss",
-      "translation": "Kys",
-      "notes": ""
-    },
-    {
-      "id": 19,
-      "user_id": 3,
-      "text": "Hug",
-      "translation": "Kram",
-      "notes": ""
-    },
-    {
-      "id": 20,
-      "user_id": 3,
-      "text": "Park",
-      "translation": "Park",
-      "notes": ""
-    },
-    {
-      "id": 21,
-      "user_id": 1,
-      "text": "poor",
-      "translation": "fattig",
-      "notes": ""
-    },
-    {
-      "id": 22,
-      "user_id": 1,
-      "text": "paint",
-      "translation": "maling",
-      "notes": ""
-    },
-    {
-      "id": 23,
-      "user_id": 1,
-      "text": "Broke into (pieces)",
-      "translation": "gik i stykker",
-      "notes": ""
-    },
-    {
-      "id": 24,
-      "user_id": 1,
-      "text": "are you crazy",
-      "translation": "har du spist s\u00f8m?",
-      "notes": ""
-    },
-    {
-      "id": 25,
-      "user_id": 1,
-      "text": "Guidance",
-      "translation": "vejledning",
-      "notes": ""
-    },
-    {
-      "id": 26,
-      "user_id": 1,
-      "text": "Wall",
-      "translation": "v\u00e6g",
-      "notes": ""
-    },
-    {
-      "id": 27,
-      "user_id": 1,
-      "text": "I don't care",
-      "translation": "ligemeget",
-      "notes": ""
-    },
-    {
-      "id": 28,
-      "user_id": 1,
-      "text": "Shouts",
-      "translation": "r\u00e5ber",
-      "notes": ""
-    },
-    {
-      "id": 29,
-      "user_id": 1,
-      "text": "damn it",
-      "translation": "for fanden",
-      "notes": ""
-    },
-    {
-      "id": 30,
-      "user_id": 1,
-      "text": "damn it",
-      "translation": "for fanden",
-      "notes": ""
-    },
-    {
-      "id": 31,
-      "user_id": 1,
-      "text": "damn it",
-      "translation": "for fanden",
-      "notes": ""
-    },
-    {
-      "id": 32,
-      "user_id": 1,
-      "text": "damn it",
-      "translation": "for fanden",
-      "notes": ""
-    },
-    {
-      "id": 33,
-      "user_id": 1,
-      "text": "can't stand",
-      "translation": "kan ikke fordrag",
-      "notes": ""
-    },
-    {
-      "id": 34,
-      "user_id": 1,
-      "text": "I am going in there.",
-      "translation": "jeg skal derind",
-      "notes": ""
-    },
-    {
-      "id": 35,
-      "user_id": 1,
-      "text": "Silence",
-      "translation": "stilhed",
-      "notes": ""
-    },
-    {
-      "id": 36,
-      "user_id": 1,
-      "text": "burned",
-      "translation": "i brand",
-      "notes": ""
-    },
-    {
-      "id": 37,
-      "user_id": 1,
-      "text": "messed up",
-      "translation": "ramt",
-      "notes": ""
-    },
-    {
-      "id": 38,
-      "user_id": 4,
-      "text": "What did you do?",
-      "translation": "Hvad levede du?",
-      "notes": ""
-    },
-    {
-      "id": 39,
-      "user_id": 4,
-      "text": "Where were you?",
-      "translation": "Hvor var du?",
-      "notes": ""
-    },
-    {
-      "id": 40,
-      "user_id": 4,
-      "text": "Last night",
-      "translation": "i g\u00e5r aften",
-      "notes": ""
-    },
-    {
-      "id": 41,
-      "user_id": 4,
-      "text": "The day before yesterday",
-      "translation": "i forg\u00e5rs",
-      "notes": ""
-    },
-    {
-      "id": 42,
-      "user_id": 4,
-      "text": "This morning",
-      "translation": "i morges (earlier)",
-      "notes": ""
-    },
-    {
-      "id": 43,
-      "user_id": 4,
-      "text": "nothing special",
-      "translation": "ikke noget s\u00e6rligt",
-      "notes": ""
-    },
-    {
-      "id": 44,
-      "user_id": 4,
-      "text": "I was just at home",
-      "translation": "jeg var bare hjemme",
-      "notes": ""
-    },
-    {
-      "id": 45,
-      "user_id": 4,
-      "text": "Was it fun?",
-      "translation": "Var det sjovt?",
-      "notes": ""
-    },
-    {
-      "id": 46,
-      "user_id": 4,
-      "text": "Great/big",
-      "translation": "stor",
-      "notes": ""
-    },
-    {
-      "id": 47,
-      "user_id": 4,
-      "text": "Powerful",
-      "translation": "kraftig",
-      "notes": ""
-    },
-    {
-      "id": 48,
-      "user_id": 4,
-      "text": "loaf of bread",
-      "translation": "franskbr\u00f8d",
-      "notes": ""
-    },
-    {
-      "id": 49,
-      "user_id": 4,
-      "text": "Danish pastry",
-      "translation": "wienerbr\u00f8d",
-      "notes": ""
-    },
-    {
-      "id": 50,
-      "user_id": 4,
-      "text": "towards the end/lastly",
-      "translation": "tild sidst",
-      "notes": ""
-    },
-    {
-      "id": 51,
-      "user_id": 4,
-      "text": "healthy",
-      "translation": "sundt",
-      "notes": ""
-    },
-    {
-      "id": 52,
-      "user_id": 4,
-      "text": "tastes good",
-      "translation": "smager godt",
-      "notes": ""
-    },
-    {
-      "id": 53,
-      "user_id": 4,
-      "text": "topping",
-      "translation": "p\u00e5laeg",
-      "notes": ""
-    },
-    {
-      "id": 54,
-      "user_id": 4,
-      "text": "shrimp",
-      "translation": "rejer",
-      "notes": ""
-    },
-    {
-      "id": 55,
-      "user_id": 4,
-      "text": "Hungry",
-      "translation": "sulten",
-      "notes": ""
-    },
-    {
-      "id": 56,
-      "user_id": 4,
-      "text": "Meatballs",
-      "translation": "frikadeller",
-      "notes": ""
-    },
-    {
-      "id": 57,
-      "user_id": 4,
-      "text": "A little sad about it",
-      "translation": "lidt ked af det",
-      "notes": ""
-    },
-    {
-      "id": 58,
-      "user_id": 4,
-      "text": "too fat",
-      "translation": "for tyk",
-      "notes": ""
-    },
-    {
-      "id": 59,
-      "user_id": 4,
-      "text": "want to lose weight",
-      "translation": "vil gerne tabe sig",
-      "notes": ""
-    }
+    {"id": 1, "user_id": 1, "text": "phone", "translation": "telefon", "notes": ""},
+    {"id": 2, "user_id": 1, "text": "works", "translation": "værker", "notes": ""},
+    {"id": 3, "user_id": 1, "text": "new word", "translation": "nyt ord", "notes": ""},
+    {"id": 4, "user_id": 1, "text": "ever", "translation": "nogensinde", "notes": ""},
+    {"id": 5, "user_id": 1, "text": "save", "translation": "gem", "notes": ""},
+    {"id": 6, "user_id": 1, "text": "A book", "translation": "en bog", "notes": ""},
+    {"id": 7, "user_id": 1, "text": "A cat", "translation": "en kat", "notes": ""},
+    {"id": 8, "user_id": 1, "text": "poor", "translation": "fattig", "notes": ""},
+    {"id": 9, "user_id": 1, "text": "paint", "translation": "maling", "notes": ""},
+    {"id": 10, "user_id": 1, "text": "Broke into (pieces)", "translation": "gik i stykker", "notes": ""},
+    {"id": 11, "user_id": 1, "text": "are you crazy", "translation": "har du spist søm?", "notes": ""},
+    {"id": 12, "user_id": 1, "text": "Guidance", "translation": "vejledning", "notes": ""},
+    {"id": 13, "user_id": 1, "text": "Wall", "translation": "væg", "notes": ""},
+    {"id": 14, "user_id": 1, "text": "I don't care", "translation": "ligemeget", "notes": ""},
+    {"id": 15, "user_id": 1, "text": "Shouts", "translation": "råber", "notes": ""},
+    {"id": 16, "user_id": 1, "text": "damn it", "translation": "for fanden", "notes": ""},
+    {"id": 17, "user_id": 1, "text": "can't stand", "translation": "kan ikke fordrage", "notes": ""},
+    {"id": 18, "user_id": 1, "text": "I am going in there.", "translation": "jeg skal derind", "notes": ""},
+    {"id": 19, "user_id": 1, "text": "Silence", "translation": "stilhed", "notes": ""},
+    {"id": 20, "user_id": 1, "text": "burned", "translation": "i brand", "notes": ""},
+    {"id": 21, "user_id": 1, "text": "messed up", "translation": "ramt", "notes": ""},
+
+    {"id": 22, "user_id": 2, "text": "Soon", "translation": "snart", "notes": ""},
+    {"id": 23, "user_id": 2, "text": "listen", "translation": "lytte", "notes": ""},
+    {"id": 24, "user_id": 2, "text": "Actually", "translation": "Egentlig", "notes": ""},
+    {"id": 25, "user_id": 2, "text": "Finished", "translation": "Færdig", "notes": ""},
+    {"id": 26, "user_id": 2, "text": "Plane", "translation": "Fly", "notes": ""},
+    {"id": 27, "user_id": 2, "text": "just", "translation": "bare", "notes": ""},
+    {"id": 28, "user_id": 2, "text": "Take it down", "translation": "tager den med ned", "notes": ""},
+    {"id": 29, "user_id": 2, "text": "look strange", "translation": "at se mærkeligt ud", "notes": ""},
+    {"id": 30, "user_id": 2, "text": "throw out", "translation": "smider ud", "notes": ""},
+    {"id": 31, "user_id": 2, "text": "Delicious", "translation": "lækkert", "notes": ""},
+    {"id": 32, "user_id": 2, "text": "not either", "translation": "heller ikke", "notes": ""},
+    {"id": 33, "user_id": 2, "text": "Boring", "translation": "kedelig", "notes": ""},
+    {"id": 34, "user_id": 2, "text": "quite", "translation": "ret", "notes": ""},
+    {"id": 35, "user_id": 2, "text": "strict", "translation": "streng", "notes": ""},
+    {"id": 36, "user_id": 2, "text": "Annoying", "translation": "irriterende", "notes": ""},
+
+    {"id": 37, "user_id": 3, "text": "I want hot chocolate", "translation": "Jeg vil have varm chokolade", "notes": ""},
+    {"id": 38, "user_id": 3, "text": "Room", "translation": "Værelse", "notes": ""},
+    {"id": 39, "user_id": 3, "text": "Kiss", "translation": "Kys", "notes": ""},
+    {"id": 40, "user_id": 3, "text": "Hug", "translation": "Kram", "notes": ""},
+    {"id": 41, "user_id": 3, "text": "Park", "translation": "Park", "notes": ""},
+
+    {"id": 42, "user_id": 4, "text": "What did you do?", "translation": "Hvad lavede du?", "notes": ""},
+    {"id": 43, "user_id": 4, "text": "Where were you?", "translation": "Hvor var du?", "notes": ""},
+    {"id": 44, "user_id": 4, "text": "Last night", "translation": "i går aftes", "notes": ""},
+    {"id": 45, "user_id": 4, "text": "The day before yesterday", "translation": "i forgårs", "notes": ""},
+    {"id": 46, "user_id": 4, "text": "This morning", "translation": "i morges", "notes": ""},
+    {"id": 47, "user_id": 4, "text": "nothing special", "translation": "ikke noget særligt", "notes": ""},
+    {"id": 48, "user_id": 4, "text": "I was just at home", "translation": "jeg var bare hjemme", "notes": ""},
+    {"id": 49, "user_id": 4, "text": "Was it fun?", "translation": "Var det sjovt?", "notes": ""},
+    {"id": 50, "user_id": 4, "text": "Great/big", "translation": "stor", "notes": ""},
+    {"id": 51, "user_id": 4, "text": "Powerful", "translation": "kraftig", "notes": ""},
+    {"id": 52, "user_id": 4, "text": "loaf of bread", "translation": "franskbrød", "notes": ""},
+    {"id": 53, "user_id": 4, "text": "Danish pastry", "translation": "wienerbrød", "notes": ""},
+    {"id": 54, "user_id": 4, "text": "towards the end/lastly", "translation": "til sidst", "notes": ""},
+    {"id": 55, "user_id": 4, "text": "healthy", "translation": "sundt", "notes": ""},
+    {"id": 56, "user_id": 4, "text": "tastes good", "translation": "smager godt", "notes": ""},
+    {"id": 57, "user_id": 4, "text": "topping", "translation": "pålæg", "notes": ""},
+    {"id": 58, "user_id": 4, "text": "shrimp", "translation": "rejer", "notes": ""},
+    {"id": 59, "user_id": 4, "text": "Hungry", "translation": "sulten", "notes": ""},
+    {"id": 60, "user_id": 4, "text": "Meatballs", "translation": "frikadeller", "notes": ""},
+    {"id": 61, "user_id": 4, "text": "A little sad about it", "translation": "lidt ked af det", "notes": ""},
+    {"id": 62, "user_id": 4, "text": "too fat", "translation": "for tyk", "notes": ""},
+    {"id": 63, "user_id": 4, "text": "want to lose weight", "translation": "vil gerne tabe sig", "notes": ""}
   ]
 }
+

@@ -13,6 +13,57 @@ const practiseState = {
     aiLoading: false,
 };
 
+const entryModalState = {
+    entryId: null,
+    entryText: "",
+};
+
+function toDisplayText(value) {
+    return (value ?? "").toString().trim().toLowerCase();
+}
+
+function escapeRegExp(value) {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function escapeHtml(value) {
+    const str = (value ?? "").toString();
+    return str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+}
+
+function highlightTarget(text, target) {
+    const safeText = escapeHtml(text || "");
+    const safeTarget = escapeHtml(target || "");
+    if (!safeText || !safeTarget) {
+        return safeText;
+    }
+    const regex = new RegExp(`(${escapeRegExp(safeTarget)})`, "i");
+    return safeText.replace(regex, "<strong>$1</strong>");
+}
+
+function normalizeEntryForDisplay(entry) {
+    if (!entry) {
+        return null;
+    }
+    return {
+        ...entry,
+        text: toDisplayText(entry.text),
+        translation: toDisplayText(entry.translation),
+        notes: toDisplayText(entry.notes),
+    };
+}
+
+function normalizeEntries(entries = []) {
+    return entries
+        .map((entry) => normalizeEntryForDisplay(entry))
+        .filter((entry) => entry !== null);
+}
+
 function shuffle(array) {
     for (let i = array.length - 1; i > 0; i -= 1) {
         const j = Math.floor(Math.random() * (i + 1));
@@ -72,8 +123,8 @@ function resetPractiseState(message = "Sign in to start practising.") {
 }
 
 function setPractiseEntries(rawEntries) {
-    const usableEntries = (rawEntries || []).filter(
-        (entry) => entry && (entry.text || "").trim() && (entry.translation || "").trim()
+    const usableEntries = normalizeEntries(rawEntries).filter(
+        (entry) => entry && entry.text && entry.translation
     );
 
     practiseState.entries = usableEntries;
@@ -167,7 +218,7 @@ function renderPractiseQuestion() {
         return;
     }
 
-    prompt.textContent = `What does ${question.prompt} mean?`;
+    prompt.textContent = `What does ${toDisplayText(question.prompt)} mean?`;
     feedback.textContent = "";
     options.innerHTML = "";
 
@@ -175,7 +226,7 @@ function renderPractiseQuestion() {
         const button = document.createElement("button");
         button.type = "button";
         button.className = "practise__option";
-        button.textContent = option.label;
+        button.textContent = toDisplayText(option.label);
         button.addEventListener("click", () => handlePractiseSelection(option.id, button));
         options.appendChild(button);
     });
@@ -283,7 +334,7 @@ async function prepareAiPractiseQuestion() {
 
         const mappedOptions = (data.options || []).map((option) => ({
             id: option.id,
-            label: option.label,
+            label: toDisplayText(option.label),
             isCorrect: Boolean(option.is_correct),
             metadata: option.metadata || {},
         }));
@@ -295,8 +346,8 @@ async function prepareAiPractiseQuestion() {
 
         practiseState.aiQuestion = {
             entryId: target.id,
-            prompt: data.prompt || target.translation || "",
-            partOfSpeech: (data.part_of_speech || "word").toLowerCase(),
+            prompt: toDisplayText(data.prompt || target.translation || ""),
+            partOfSpeech: toDisplayText(data.part_of_speech || "word"),
             options: shuffle(mappedOptions),
         };
         practiseState.aiAllowSelection = true;
@@ -321,7 +372,7 @@ function renderAiPractiseQuestion() {
     }
 
     const partOfSpeech = question.partOfSpeech || "word";
-    const posLabel = partOfSpeech.charAt(0).toUpperCase() + partOfSpeech.slice(1);
+    const posLabel = partOfSpeech;
 
     prompt.textContent = `Pick the ${partOfSpeech} that matches "${question.prompt}".`;
     feedback.textContent = "";
@@ -338,7 +389,7 @@ function renderAiPractiseQuestion() {
 
         const label = document.createElement("span");
         label.className = "practise__card-label";
-        label.textContent = option.label;
+        label.textContent = toDisplayText(option.label);
 
         button.addEventListener("click", () => handleAiPractiseSelection(option.id, button));
         button.appendChild(meta);
@@ -518,11 +569,12 @@ async function translateText() {
         if (!response.ok) {
             throw new Error(data.error || "Translation failed");
         }
+        const normalizedTranslation = toDisplayText(data.translation || "");
         if (result) {
-            result.textContent = data.translation;
+            result.textContent = normalizedTranslation;
         }
         if (targetField) {
-            targetField.value = data.translation || "";
+            targetField.value = normalizedTranslation;
         }
     } catch (error) {
         console.error("Error:", error);
@@ -618,18 +670,19 @@ async function fetchEntries() {
 
 function renderEntries(entries) {
     const list = document.getElementById("entriesList");
-    setPractiseEntries(entries);
+    const normalizedEntries = normalizeEntries(entries);
+    setPractiseEntries(normalizedEntries);
     if (!list) {
         return;
     }
 
-    if (!entries || entries.length === 0) {
+    if (!normalizedEntries || normalizedEntries.length === 0) {
         list.innerHTML = "<li>No entries saved yet.</li>";
         return;
     }
 
     list.innerHTML = "";
-    entries.forEach((entry) => {
+    normalizedEntries.forEach((entry) => {
         const item = document.createElement("li");
         item.classList.add("entry-item");
 
@@ -637,14 +690,26 @@ function renderEntries(entries) {
         text.classList.add("entry-item__text");
         text.textContent = `${entry.text} → ${entry.translation || "?"}`;
 
-        const button = document.createElement("button");
-        button.type = "button";
-        button.classList.add("entry-item__delete");
-        button.textContent = "Delete";
-        button.addEventListener("click", () => deleteEntry(entry.id));
+        const actions = document.createElement("div");
+        actions.classList.add("entry-item__actions");
+
+        const viewButton = document.createElement("button");
+        viewButton.type = "button";
+        viewButton.classList.add("entry-item__view");
+        viewButton.textContent = "View";
+        viewButton.addEventListener("click", () => showEntryDetails(entry));
+
+        const deleteButton = document.createElement("button");
+        deleteButton.type = "button";
+        deleteButton.classList.add("entry-item__delete");
+        deleteButton.textContent = "Delete";
+        deleteButton.addEventListener("click", () => deleteEntry(entry.id));
+
+        actions.appendChild(viewButton);
+        actions.appendChild(deleteButton);
 
         item.appendChild(text);
-        item.appendChild(button);
+        item.appendChild(actions);
         list.appendChild(item);
     });
 }
@@ -694,6 +759,82 @@ function updateAuthState(authenticated, username) {
         resetPractiseState("Sign in to start practising.");
         setPractiseMode("regular");
         switchView("auth");
+    }
+}
+
+function showEntryDetails(entry) {
+    const modal = document.getElementById("entryModal");
+    const title = document.getElementById("entryModalTitle");
+    const body = document.getElementById("entryModalBody");
+    const exampleText = document.getElementById("entryModalExampleText");
+    const exampleButton = document.getElementById("entryModalExampleButton");
+
+    if (!modal || !title || !body || !exampleText || !exampleButton || !entry) {
+        return;
+    }
+
+    entryModalState.entryId = entry.id;
+    entryModalState.entryText = toDisplayText(entry.translation || entry.text);
+
+    title.textContent = toDisplayText(entry.text) || "word details";
+
+    const translation = toDisplayText(entry.translation) || "no translation yet";
+    const notes = toDisplayText(entry.notes) || "notes: n/a";
+
+    body.textContent = `${translation} — ${notes}`;
+    exampleText.textContent = "";
+    exampleButton.removeAttribute("disabled");
+    exampleButton.textContent = "Show example use";
+
+    modal.classList.remove("modal--hidden");
+}
+
+async function showEntryExample() {
+    const exampleText = document.getElementById("entryModalExampleText");
+    const exampleButton = document.getElementById("entryModalExampleButton");
+    if (!exampleText || !exampleButton || !entryModalState.entryId) {
+        return;
+    }
+
+    exampleButton.setAttribute("disabled", "true");
+    exampleButton.textContent = "Generating…";
+    exampleText.textContent = "Working on an example…";
+
+    try {
+        const response = await fetch(`/entries/${entryModalState.entryId}/example`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+        });
+
+        if (response.status === 401) {
+            updateAuthState(false, null);
+            exampleText.textContent = "Please log in again to view examples.";
+            return;
+        }
+
+        const data = await response.json();
+        if (!response.ok) {
+            exampleText.textContent = data.error || "Could not load an example.";
+            return;
+        }
+
+        const example = data.example || "";
+        exampleText.innerHTML = highlightTarget(example, entryModalState.entryText);
+    } catch (error) {
+        console.error("Error fetching example:", error);
+        exampleText.textContent = "Unable to load an example right now.";
+    } finally {
+        exampleButton.textContent = "Show example use";
+        exampleButton.removeAttribute("disabled");
+    }
+}
+
+function hideEntryModal() {
+    const modal = document.getElementById("entryModal");
+    if (modal) {
+        modal.classList.add("modal--hidden");
     }
 }
 
@@ -845,6 +986,13 @@ function initApp() {
     document.getElementById("loginButton")?.addEventListener("click", loginUser);
     document.getElementById("registerButton")?.addEventListener("click", registerUser);
     document.getElementById("logoutButton")?.addEventListener("click", logoutUser);
+    document.getElementById("entryModalExampleButton")?.addEventListener("click", showEntryExample);
+    document.getElementById("entryModalClose")?.addEventListener("click", hideEntryModal);
+    document.getElementById("entryModal")?.addEventListener("click", (event) => {
+        if (event.target.id === "entryModal") {
+            hideEntryModal();
+        }
+    });
     document.getElementById("translationDirection")?.addEventListener("change", () => {
         clearEntryInputs();
         updateDirectionUI();

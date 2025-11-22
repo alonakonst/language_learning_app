@@ -132,6 +132,20 @@
         </section>
     </main>
 
+    <div class="modal modal--hidden" id="entryModal" role="dialog" aria-modal="true">
+        <div class="modal__dialog">
+            <h3 class="modal__title" id="entryModalTitle">Entry details</h3>
+            <p class="modal__text" id="entryModalBody"></p>
+            <div class="modal__example">
+                <button class="btn btn--secondary" id="entryModalExampleButton">Show example use</button>
+                <p class="modal__example-text" id="entryModalExampleText"></p>
+            </div>
+            <div class="modal__footer">
+                <button class="modal__close" id="entryModalClose">Close</button>
+            </div>
+        </div>
+    </div>
+
     <nav class="tab-bar tab-bar--hidden" id="tabBar">
         <button class="tab tab--active" data-view="dictionary">
             <span>Dictionary</span>
