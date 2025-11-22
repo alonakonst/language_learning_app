@@ -87,45 +87,31 @@
         <section id="practiseView" class="page">
             <div class="card">
                 <h2 class="card__title">Practise</h2>
-                <div class="practise__mode-toggle" role="tablist">
-                    <button
-                        type="button"
-                        class="practise__mode-button practise__mode-button--active"
-                        data-mode="regular"
-                    >
-                        Regular practise
-                    </button>
-                    <button
-                        type="button"
-                        class="practise__mode-button"
-                        data-mode="ai"
-                    >
-                        AI practise
-                    </button>
-                </div>
-
-                <div class="practise__section" id="practiseRegularSection">
-                    <p class="practise__empty-message" id="practiseEmptyMessage">
-                        Save at least four entries to start practising.
-                    </p>
-                    <div class="practise__body practise__body--hidden" id="practiseBody">
-                        <p class="practise__prompt" id="practisePrompt">Loading…</p>
-                        <div class="practise__options" id="practiseOptions"></div>
-                        <p class="practise__feedback" id="practiseFeedback"></p>
-                    </div>
-                </div>
-
-                <div class="practise__section practise__section--hidden" id="practiseAiSection">
+                <div class="practise__section" id="practiseAiSection">
                     <p class="practise__empty-message" id="practiseAiEmptyMessage">
                         Save at least one entry to unlock AI practise.
                     </p>
                     <div class="practise__body practise__body--hidden" id="practiseAiBody">
-                        <p class="practise__prompt" id="practiseAiPrompt">Loading…</p>
-                        <div class="practise__options practise__options--cards" id="practiseAiOptions"></div>
-                        <p class="practise__feedback" id="practiseAiFeedback"></p>
-                        <button class="btn btn--secondary practise__next-button" id="practiseAiNextButton">
-                            New flashcards
-                        </button>
+                        <div class="practise__flashcards" id="practiseFlashcards">
+                            <p class="practise__prompt" id="practiseAiPrompt">Loading…</p>
+                            <div class="practise__options practise__options--cards" id="practiseAiOptions"></div>
+                            <p class="practise__feedback" id="practiseAiFeedback"></p>
+                        </div>
+                        <div class="practise__cloze" id="practiseClozeBlock">
+                            <p class="practise__prompt" id="practiseClozePrompt">
+                                Fill in the blank with the correct Danish word or phrase.
+                            </p>
+                            <div class="practise__hint-row">
+                                <p class="practise__hint practise__hint--hidden" id="practiseClozeHint"></p>
+                                <button class="btn btn--ghost" id="practiseClozeShowHint">Show hint</button>
+                            </div>
+                            <div class="practise__input-row">
+                                <input type="text" id="practiseClozeInput" placeholder="Type the Danish word" />
+                                <button class="btn btn--primary" id="practiseClozeCheck">Check</button>
+                            </div>
+                            <button class="btn btn--secondary practise__giveup" id="practiseClozeGiveUp">I give up</button>
+                            <p class="practise__feedback" id="practiseClozeFeedback"></p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -148,6 +134,9 @@
                 <div class="modal__example-line">
                     <button class="icon-button modal__audio is-hidden" id="entryModalExamplePronounceButton" aria-label="Play example pronunciation">
                         🔊
+                    </button>
+                    <button class="icon-button modal__refresh is-hidden" id="entryModalExampleRefreshButton" aria-label="Regenerate example">
+                        ↻
                     </button>
                     <p class="modal__example-text modal__example-text--danish" id="entryModalExampleDanish"></p>
                 </div>

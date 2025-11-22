@@ -347,6 +347,20 @@ body {
     gap: 0.4rem;
 }
 
+.modal__refresh {
+    background: #eef2ff;
+    border: none;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    font-size: 0.95rem;
+    line-height: 1;
+    color: #111827;
+}
+
 .modal__footer {
     display: flex;
     justify-content: flex-end;
@@ -380,38 +394,6 @@ body {
     display: none;
 }
 
-.practise__mode-toggle {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.6rem;
-    padding: 0.5rem;
-    border-radius: 12px;
-    background: #f2f2f2;
-}
-
-.practise__mode-button {
-    border: none;
-    border-radius: 10px;
-    padding: 0.65rem 0.75rem;
-    font-size: 0.9rem;
-    font-weight: 600;
-    background: transparent;
-    color: #000000;
-    cursor: pointer;
-    transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
-}
-
-.practise__mode-button--active {
-    background: #000000;
-    color: #ffffff;
-    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.25);
-}
-
-.practise__mode-button:focus-visible {
-    outline: 2px solid rgba(0, 0, 0, 0.6);
-    outline-offset: 2px;
-}
-
 .practise__section {
     display: flex;
     flex-direction: column;
@@ -436,7 +418,7 @@ body {
 .practise__body {
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    gap: 1.25rem;
 }
 
 .practise__body--hidden {
@@ -536,7 +518,7 @@ body {
 
 .practise__card--incorrect {
     border-color: rgba(239, 68, 68, 0.65);
-    background: rgba(239, 68, 68, 0.1);
+    background: rgba(239, 68, 68, 0.12);
     color: #7f1d1d;
 }
 
@@ -545,8 +527,9 @@ body {
     opacity: 0.7;
 }
 
-.practise__next-button {
-    margin-top: 0.5rem;
+.practise__options--disabled {
+    pointer-events: none;
+    opacity: 0.6;
 }
 
 .practise__feedback {
@@ -554,6 +537,62 @@ body {
     margin: 0;
     font-size: 0.9rem;
     color: #000000;
+}
+
+.practise__cloze {
+    border-top: 1px solid #e5e7eb;
+    padding-top: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    background: #f9fafb;
+    border-radius: 12px;
+    padding: 1rem;
+}
+
+.practise__flashcards {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.practise__input-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.practise__input-row input {
+    flex: 1;
+    padding: 0.55rem 0.75rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    font-size: 0.95rem;
+}
+
+.practise__hint {
+    margin: 0;
+    color: #6b7280;
+    font-size: 0.9rem;
+}
+
+.practise__hint-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.practise__hint--hidden {
+    filter: blur(6px);
+    user-select: none;
+}
+
+#practiseClozeGiveUp {
+    align-self: flex-start;
+}
+
+#practiseNextExercise {
+    align-self: flex-start;
 }
 
 @media (min-width: 768px) {

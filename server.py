@@ -2,6 +2,7 @@ from functools import wraps
 
 import os
 import json
+import re
 
 from dotenv import load_dotenv
 from flask import Flask, render_template, request, jsonify, session, g, make_response
@@ -45,6 +46,29 @@ def close_database(_exc):
         database.close()
 
 init_database()
+
+
+def _load_example_from_notes(entry: DictionaryEntry):
+    try:
+        data = json.loads(entry.notes or "")
+        if isinstance(data, dict):
+            danish = (data.get("example_da") or data.get("danish") or "").strip()
+            english = (data.get("example_en") or data.get("english") or "").strip()
+            if danish or english:
+                return {"danish": danish, "english": english}
+    except Exception:
+        return None
+    return None
+
+
+def _save_example_to_notes(entry: DictionaryEntry, danish: str, english: str):
+    entry.notes = json.dumps(
+        {
+            "example_da": danish or "",
+            "example_en": english or "",
+        }
+    )
+    entry.save()
 
 @app.before_request
 def load_logged_in_user():
@@ -261,15 +285,12 @@ def entry_example(entry_id: int):
     if not target_text or not target_translation:
         return jsonify({"error": "The entry is missing a word or translation."}), 400
 
-    try:
-        cached = json.loads(entry.notes or "")
-        if isinstance(cached, dict):
-            danish = (cached.get("example_da") or cached.get("danish") or "").strip()
-            english = (cached.get("example_en") or cached.get("english") or "").strip()
-            if danish or english:
-                return jsonify({"example": {"danish": danish, "english": english}})
-    except Exception:
-        pass
+    force_refresh = (request.args.get("force") or "").lower() in ("1", "true", "yes", "refresh")
+
+    if not force_refresh:
+        cached = _load_example_from_notes(entry)
+        if cached:
+            return jsonify({"example": cached})
 
     try:
         example = llm_actions.generate_usage_example_pair(target_text, target_translation)
@@ -282,13 +303,7 @@ def entry_example(entry_id: int):
     if not example or not (example.get("danish") or example.get("english")):
         return jsonify({"error": "No example was generated."}), 502
 
-    entry.notes = json.dumps(
-        {
-            "example_da": example.get("danish") or "",
-            "example_en": example.get("english") or "",
-        }
-    )
-    entry.save()
+    _save_example_to_notes(entry, example.get("danish") or "", example.get("english") or "")
 
     return jsonify({"example": example})
 
@@ -372,6 +387,61 @@ def ai_practise():
             "part_of_speech": ai_set["part_of_speech"],
             "target_text": target_text,
             "options": options,
+        }
+    )
+
+
+def _mask_example_sentence(example: str, target: str) -> str:
+    example = (example or "").strip()
+    target = (target or "").strip()
+    if not example:
+        return ""
+    if not target:
+        return example
+    pattern = re.compile(re.escape(target), re.IGNORECASE)
+    if pattern.search(example):
+        return pattern.sub("_____", example, count=1)
+    return f"_____ {example}"
+
+
+@app.route("/practise/cloze", methods=["POST"])
+@login_required
+def practise_cloze():
+    data = request.get_json() or {}
+    entry_id = data.get("entry_id")
+    if not entry_id:
+        return jsonify({"error": "entry_id is required."}), 400
+
+    entry = DictionaryEntry.get_or_none(
+        (DictionaryEntry.id == entry_id) & (DictionaryEntry.user == g.user)
+    )
+    if entry is None:
+        return jsonify({"error": "Entry not found."}), 404
+
+    target_text = (entry.text or "").strip()
+    target_translation = (entry.translation or "").strip()
+    if not target_text or not target_translation:
+        return jsonify({"error": "The selected entry is missing a translation."}), 400
+
+    try:
+        example = llm_actions.generate_usage_example_pair(target_text, target_translation)
+        _save_example_to_notes(entry, example.get("danish") or "", example.get("english") or "")
+    except Exception:
+        app.logger.exception("Failed to generate example for cloze practise %s", entry_id)
+        example = _load_example_from_notes(entry)
+        if not example:
+            return jsonify({"error": "Unable to create a sentence right now."}), 502
+
+    danish_example = (example.get("danish") or "").strip()
+    cloze_prompt = _mask_example_sentence(danish_example, target_translation)
+    if not cloze_prompt:
+        return jsonify({"error": "Unable to prepare a sentence."}), 502
+
+    return jsonify(
+        {
+            "prompt": cloze_prompt,
+            "answer": target_translation,
+            "hint_en": target_text,
         }
     )
 

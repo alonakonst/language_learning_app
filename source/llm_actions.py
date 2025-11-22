@@ -150,7 +150,7 @@ def generate_ai_practise_cards(target_text: str, target_translation: str):
 def generate_usage_example(target_text: str, target_translation: str) -> str:
     """
     Return a medium-length Danish sentence or brief two-line dialogue that uses the
-    target Danish word or phrase naturally.
+    target Danish word or phrase naturally with the same meaning as the provided English.
     """
 
     target_clean = (target_text or "").strip()
@@ -160,8 +160,9 @@ def generate_usage_example(target_text: str, target_translation: str) -> str:
 
     system_prompt = (
         "You are a concise Danish language tutor. Provide only one natural example in Danish "
-        "that uses the target Danish word/phrase at least once exactly as provided. Keep it "
-        "under 35 words. "
+        "that uses the target Danish word/phrase at least once exactly as provided and preserves "
+        "the meaning of the supplied English translation (do not substitute a different sense; keep the same meaning). "
+        "Keep it under 35 words. "
         "You may use a short two-line dialogue if it feels natural. "
         "Do not prepend explanations or quotes. Output Danish only."
     )

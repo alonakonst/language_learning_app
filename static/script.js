@@ -5,12 +5,13 @@ const authState = {
 
 const practiseState = {
     entries: [],
-    currentQuestion: null,
-    allowSelection: true,
-    mode: "regular",
     aiQuestion: null,
     aiAllowSelection: true,
     aiLoading: false,
+    clozeQuestion: null,
+    clozeLoading: false,
+    mode: "flashcard", // flashcard or cloze
+    awaitingNext: false,
 };
 
 const entryModalState = {
@@ -92,37 +93,17 @@ function shuffle(array) {
 
 function resetPractiseState(message = "Sign in to start practising.") {
     practiseState.entries = [];
-    practiseState.currentQuestion = null;
-    practiseState.allowSelection = true;
     practiseState.aiQuestion = null;
     practiseState.aiAllowSelection = true;
     practiseState.aiLoading = false;
+    practiseState.clozeQuestion = null;
+    practiseState.clozeLoading = false;
 
-    const emptyMessage = document.getElementById("practiseEmptyMessage");
-    const practiseBody = document.getElementById("practiseBody");
-    const prompt = document.getElementById("practisePrompt");
-    const options = document.getElementById("practiseOptions");
-    const feedback = document.getElementById("practiseFeedback");
     const aiEmptyMessage = document.getElementById("practiseAiEmptyMessage");
     const aiBody = document.getElementById("practiseAiBody");
     const aiPrompt = document.getElementById("practiseAiPrompt");
     const aiOptions = document.getElementById("practiseAiOptions");
     const aiFeedback = document.getElementById("practiseAiFeedback");
-
-    emptyMessage?.classList.remove("is-hidden");
-    if (emptyMessage) {
-        emptyMessage.textContent = message;
-    }
-    practiseBody?.classList.add("practise__body--hidden");
-    if (prompt) {
-        prompt.textContent = "…";
-    }
-    if (options) {
-        options.innerHTML = "";
-    }
-    if (feedback) {
-        feedback.textContent = "";
-    }
 
     if (aiEmptyMessage) {
         aiEmptyMessage.textContent = message;
@@ -146,38 +127,15 @@ function setPractiseEntries(rawEntries) {
     );
 
     practiseState.entries = usableEntries;
-    practiseState.currentQuestion = null;
-    practiseState.allowSelection = true;
-
-    const emptyMessage = document.getElementById("practiseEmptyMessage");
-    const practiseBody = document.getElementById("practiseBody");
-
-    if (!emptyMessage || !practiseBody) {
-        return;
-    }
-
-    if (usableEntries.length < 4) {
-        emptyMessage.textContent =
-            usableEntries.length === 0
-                ? "Save some words in your dictionary to start practising."
-                : "Add at least four saved words to start practising.";
-        emptyMessage.classList.remove("is-hidden");
-        practiseBody.classList.add("practise__body--hidden");
-        return;
-    }
-
-    emptyMessage.classList.add("is-hidden");
-    practiseBody.classList.remove("practise__body--hidden");
-    if (practiseState.mode === "regular") {
-        preparePractiseQuestion();
-    }
 
     updateAiPractiseAvailability();
+    prepareClozeQuestion();
 }
 
 function updateAiPractiseAvailability() {
     const aiEmptyMessage = document.getElementById("practiseAiEmptyMessage");
     const aiBody = document.getElementById("practiseAiBody");
+    renderExerciseVisibility();
 
     if (!aiEmptyMessage || !aiBody) {
         return;
@@ -195,85 +153,261 @@ function updateAiPractiseAvailability() {
     aiEmptyMessage.classList.add("is-hidden");
     aiBody.classList.remove("practise__body--hidden");
 
-    if (
-        practiseState.mode === "ai" &&
-        !practiseState.aiQuestion &&
-        !practiseState.aiLoading
-    ) {
-        prepareAiPractiseQuestion();
+    if (practiseState.mode === "flashcard") {
+        if (!practiseState.aiQuestion && !practiseState.aiLoading) {
+            prepareAiPractiseQuestion();
+        }
+    } else if (practiseState.mode === "cloze") {
+        if (!practiseState.clozeQuestion && !practiseState.clozeLoading) {
+            prepareClozeQuestion();
+        } else {
+            renderClozeQuestion();
+        }
     }
 }
 
-function preparePractiseQuestion() {
-    if (practiseState.mode !== "regular" || practiseState.entries.length < 4) {
+function renderClozeQuestion() {
+    const promptEl = document.getElementById("practiseClozePrompt");
+    const hintEl = document.getElementById("practiseClozeHint");
+    const showHintButton = document.getElementById("practiseClozeShowHint");
+    const inputEl = document.getElementById("practiseClozeInput");
+    const feedbackEl = document.getElementById("practiseClozeFeedback");
+    const checkButton = document.getElementById("practiseClozeCheck");
+    const giveUpButton = document.getElementById("practiseClozeGiveUp");
+
+    if (
+        !promptEl ||
+        !hintEl ||
+        !showHintButton ||
+        !inputEl ||
+        !feedbackEl ||
+        !checkButton ||
+        !giveUpButton
+    ) {
         return;
     }
+
+    renderExerciseVisibility();
+
+    const question = practiseState.clozeQuestion;
+    if (!question) {
+        promptEl.textContent = "No sentence available. Add more words.";
+        hintEl.textContent = "";
+        feedbackEl.textContent = "";
+        inputEl.value = "";
+        checkButton.setAttribute("disabled", "true");
+        showHintButton.setAttribute("disabled", "true");
+        giveUpButton.setAttribute("disabled", "true");
+        return;
+    }
+
+    promptEl.textContent = question.prompt || "Fill in the blank.";
+    hintEl.textContent = question.hintEnglish ? `Hint: ${question.hintEnglish}` : "";
+    hintEl.classList.add("practise__hint--hidden");
+    showHintButton.textContent = "Show hint";
+    showHintButton.removeAttribute("disabled");
+    giveUpButton.removeAttribute("disabled");
+    feedbackEl.textContent = "";
+    inputEl.value = "";
+    inputEl.removeAttribute("disabled");
+    checkButton.removeAttribute("disabled");
+    practiseState.awaitingNext = false;
+    inputEl.focus();
+}
+
+function checkClozeAnswer() {
+    const inputEl = document.getElementById("practiseClozeInput");
+    const feedbackEl = document.getElementById("practiseClozeFeedback");
+    const checkButton = document.getElementById("practiseClozeCheck");
+    const giveUpButton = document.getElementById("practiseClozeGiveUp");
+    if (!inputEl || !feedbackEl || !practiseState.clozeQuestion) {
+        return;
+    }
+
+    const userAnswer = toDisplayText(inputEl.value).toLowerCase();
+    const expected = toDisplayText(practiseState.clozeQuestion.answer).toLowerCase();
+
+    if (!userAnswer) {
+        feedbackEl.textContent = "Type your answer first.";
+        feedbackEl.style.color = "#b91c1c";
+        return;
+    }
+
+    const correct = userAnswer === expected;
+    const close =
+        !correct &&
+        userAnswer.length >= 2 &&
+        Math.abs(userAnswer.length - expected.length) <= 2 &&
+        levenshteinDistance(userAnswer, expected) <= 2;
+
+    if (correct) {
+        feedbackEl.textContent = "Great! That's correct. Tap next exercise.";
+        feedbackEl.style.color = "#15803d";
+    } else if (close) {
+        feedbackEl.textContent = "Not quite, almost there.";
+        feedbackEl.style.color = "#d97706";
+    } else {
+        feedbackEl.textContent = "Not quite. Try again.";
+        feedbackEl.style.color = "#b91c1c";
+    }
+
+    if (correct) {
+        checkButton?.setAttribute("disabled", "true");
+        inputEl.setAttribute("disabled", "true");
+        giveUpButton?.setAttribute("disabled", "true");
+        practiseState.awaitingNext = true;
+        renderNextExerciseButton();
+    }
+}
+
+function levenshteinDistance(a, b) {
+    const matrix = Array.from({ length: a.length + 1 }, () => new Array(b.length + 1).fill(0));
+    for (let i = 0; i <= a.length; i += 1) {
+        matrix[i][0] = i;
+    }
+    for (let j = 0; j <= b.length; j += 1) {
+        matrix[0][j] = j;
+    }
+    for (let i = 1; i <= a.length; i += 1) {
+        for (let j = 1; j <= b.length; j += 1) {
+            const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+            matrix[i][j] = Math.min(
+                matrix[i - 1][j] + 1,
+                matrix[i][j - 1] + 1,
+                matrix[i - 1][j - 1] + cost
+            );
+        }
+    }
+    return matrix[a.length][b.length];
+}
+
+function revealClozeHint() {
+    const hintEl = document.getElementById("practiseClozeHint");
+    const showHintButton = document.getElementById("practiseClozeShowHint");
+    if (!hintEl || !showHintButton) {
+        return;
+    }
+    hintEl.classList.remove("practise__hint--hidden");
+    showHintButton.setAttribute("disabled", "true");
+}
+
+function renderNextExerciseButton() {
+    let control = document.getElementById("practiseNextExercise");
+    const container = document.getElementById("practiseAiBody");
+    if (!container) {
+        return;
+    }
+    if (!control) {
+        control = document.createElement("button");
+        control.id = "practiseNextExercise";
+        control.className = "btn btn--primary";
+        control.textContent = "Next exercise";
+        container.appendChild(control);
+        control.addEventListener("click", () => {
+            setExerciseMode(Math.random() < 0.5 ? "flashcard" : "cloze");
+            control.remove();
+        });
+    }
+}
+
+function giveUpCloze() {
+    const feedbackEl = document.getElementById("practiseClozeFeedback");
+    const inputEl = document.getElementById("practiseClozeInput");
+    const checkButton = document.getElementById("practiseClozeCheck");
+    const giveUpButton = document.getElementById("practiseClozeGiveUp");
+    if (!feedbackEl || !inputEl || !practiseState.clozeQuestion) {
+        return;
+    }
+
+    const correct = practiseState.clozeQuestion.answer || "";
+    feedbackEl.textContent = `Answer: ${correct}`;
+    feedbackEl.style.color = "#0f172a";
+    inputEl.value = correct;
+    inputEl.setAttribute("disabled", "true");
+    checkButton?.setAttribute("disabled", "true");
+    giveUpButton?.setAttribute("disabled", "true");
+    practiseState.awaitingNext = true;
+    renderNextExerciseButton();
+}
+
+function renderExerciseVisibility() {
+    const flashcards = document.getElementById("practiseFlashcards");
+    const cloze = document.getElementById("practiseClozeBlock");
+    if (!flashcards || !cloze) {
+        return;
+    }
+    flashcards.classList.toggle("is-hidden", practiseState.mode !== "flashcard");
+    cloze.classList.toggle("is-hidden", practiseState.mode !== "cloze");
+}
+
+function setExerciseMode(mode) {
+    if (mode !== "flashcard" && mode !== "cloze") {
+        return;
+    }
+    practiseState.mode = mode;
+    practiseState.awaitingNext = false;
+    const nextButton = document.getElementById("practiseNextExercise");
+    nextButton?.remove();
+    renderExerciseVisibility();
+
+    if (mode === "flashcard") {
+        practiseState.aiQuestion = null;
+        prepareAiPractiseQuestion();
+    } else {
+        practiseState.clozeQuestion = null;
+        prepareClozeQuestion();
+    }
+}
+
+async function prepareClozeQuestion() {
+    if (
+        practiseState.entries.length === 0 ||
+        practiseState.clozeLoading ||
+        !authState.authenticated ||
+        practiseState.mode !== "cloze"
+    ) {
+        renderClozeQuestion();
+        return;
+    }
+
+    practiseState.clozeLoading = true;
+    practiseState.clozeQuestion = null;
 
     const entries = [...practiseState.entries];
-    const correct = entries[Math.floor(Math.random() * entries.length)];
-    const distractors = shuffle(entries.filter((entry) => entry.id !== correct.id)).slice(0, 3);
-    const options = shuffle([correct, ...distractors]).map((entry) => ({
-        id: entry.id,
-        label: entry.text,
-    }));
+    const target = entries[Math.floor(Math.random() * entries.length)];
 
-    practiseState.currentQuestion = {
-        prompt: correct.translation,
-        correctId: correct.id,
-        options,
-    };
-    practiseState.allowSelection = true;
-    renderPractiseQuestion();
-}
+    try {
+        const response = await fetch("/practise/cloze", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ entry_id: target.id }),
+        });
 
-function renderPractiseQuestion() {
-    const question = practiseState.currentQuestion;
-    const prompt = document.getElementById("practisePrompt");
-    const options = document.getElementById("practiseOptions");
-    const feedback = document.getElementById("practiseFeedback");
+        if (response.status === 401) {
+            updateAuthState(false, null);
+            return;
+        }
 
-    if (practiseState.mode !== "regular" || !question || !prompt || !options || !feedback) {
-        return;
-    }
+        const data = await response.json();
+        if (!response.ok) {
+            console.error("Cloze practise error:", data.error);
+            return;
+        }
 
-    prompt.textContent = `What does ${toDisplayText(question.prompt)} mean?`;
-    feedback.textContent = "";
-    options.innerHTML = "";
-
-    question.options.forEach((option) => {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "practise__option";
-        button.textContent = toDisplayText(option.label);
-        button.addEventListener("click", () => handlePractiseSelection(option.id, button));
-        options.appendChild(button);
-    });
-}
-
-function handlePractiseSelection(optionId, button) {
-    if (!practiseState.currentQuestion || !practiseState.allowSelection) {
-        return;
-    }
-
-    const feedback = document.getElementById("practiseFeedback");
-    const options = document.getElementById("practiseOptions");
-    if (!feedback || !options) {
-        return;
-    }
-
-    if (optionId === practiseState.currentQuestion.correctId) {
-        practiseState.allowSelection = false;
-        feedback.textContent = "Correct! Here's the next one…";
-        Array.from(options.children).forEach((child) => child.setAttribute("disabled", "true"));
-        button.classList.add("practise__option--correct");
-        setTimeout(() => {
-            Array.from(options.children).forEach((child) => child.removeAttribute("disabled"));
-            preparePractiseQuestion();
-        }, 900);
-    } else {
-        button.classList.add("practise__option--incorrect");
-        feedback.textContent = "Not quite. Try again.";
-        setTimeout(() => button.classList.remove("practise__option--incorrect"), 800);
+        practiseState.clozeQuestion = {
+            entryId: target.id,
+            prompt: data.prompt || "",
+            answer: toDisplayText(data.answer || ""),
+            hintEnglish: toDisplayText(data.hint_en || target.text || ""),
+        };
+        renderClozeQuestion();
+    } catch (error) {
+        console.error("Error preparing cloze practise:", error);
+    } finally {
+        practiseState.clozeLoading = false;
+        if (!practiseState.clozeQuestion) {
+            renderClozeQuestion();
+        }
     }
 }
 
@@ -311,10 +445,10 @@ function showAiPractiseError(message) {
 
 async function prepareAiPractiseQuestion() {
     if (
-        practiseState.mode !== "ai" ||
         practiseState.entries.length === 0 ||
         practiseState.aiLoading ||
-        !authState.authenticated
+        !authState.authenticated ||
+        practiseState.mode !== "flashcard"
     ) {
         return;
     }
@@ -346,13 +480,10 @@ async function prepareAiPractiseQuestion() {
             return;
         }
 
-        if (practiseState.mode !== "ai") {
-            return;
-        }
-
         const mappedOptions = (data.options || []).map((option) => ({
             id: option.id,
             label: toDisplayText(option.label),
+            translation: toDisplayText(option.metadata?.translation),
             isCorrect: Boolean(option.is_correct),
             metadata: option.metadata || {},
         }));
@@ -362,12 +493,20 @@ async function prepareAiPractiseQuestion() {
             return;
         }
 
+        const questionType = Math.random() < 0.5 ? "en_to_da" : "da_to_en";
+        const targetEnglish = toDisplayText(data.target_text || "");
+        const targetDanish = toDisplayText(data.prompt || target.translation || "");
+
         practiseState.aiQuestion = {
             entryId: target.id,
-            prompt: toDisplayText(data.prompt || target.translation || ""),
+            prompt: questionType === "en_to_da" ? targetEnglish : targetDanish,
             partOfSpeech: toDisplayText(data.part_of_speech || "word"),
+            questionType,
+            targetEnglish,
+            targetDanish,
             options: shuffle(mappedOptions),
         };
+        practiseState.awaitingNext = false;
         practiseState.aiAllowSelection = true;
         renderAiPractiseQuestion();
     } catch (error) {
@@ -383,18 +522,23 @@ function renderAiPractiseQuestion() {
     const prompt = document.getElementById("practiseAiPrompt");
     const options = document.getElementById("practiseAiOptions");
     const feedback = document.getElementById("practiseAiFeedback");
-    const nextButton = document.getElementById("practiseAiNextButton");
 
-    if (practiseState.mode !== "ai" || !question || !prompt || !options || !feedback) {
+    if (!question || !prompt || !options || !feedback) {
         return;
     }
 
     const partOfSpeech = question.partOfSpeech || "word";
     const posLabel = partOfSpeech;
+    const isEnToDa = question.questionType === "en_to_da";
 
-    prompt.textContent = `Pick the ${partOfSpeech} that matches "${question.prompt}".`;
+    if (isEnToDa) {
+        prompt.textContent = `How is "${question.targetEnglish}" in Danish?`;
+    } else {
+        prompt.textContent = `What does ${question.targetDanish || question.prompt} mean?`;
+    }
     feedback.textContent = "";
     options.innerHTML = "";
+    options.classList.toggle("practise__options--disabled", practiseState.awaitingNext);
 
     question.options.forEach((option) => {
         const button = document.createElement("button");
@@ -407,7 +551,10 @@ function renderAiPractiseQuestion() {
 
         const label = document.createElement("span");
         label.className = "practise__card-label";
-        label.textContent = toDisplayText(option.label);
+        const optionLabel = isEnToDa
+            ? toDisplayText(option.translation || option.label)
+            : toDisplayText(option.label);
+        label.textContent = optionLabel || "…";
 
         button.addEventListener("click", () => handleAiPractiseSelection(option.id, button));
         button.appendChild(meta);
@@ -415,7 +562,7 @@ function renderAiPractiseQuestion() {
         options.appendChild(button);
     });
 
-    nextButton?.removeAttribute("disabled");
+    renderExerciseVisibility();
 }
 
 function handleAiPractiseSelection(optionId, button) {
@@ -436,70 +583,17 @@ function handleAiPractiseSelection(optionId, button) {
 
     if (chosen.isCorrect) {
         practiseState.aiAllowSelection = false;
-        feedback.textContent = "Nice! That's your word. Loading the next flashcards…";
+        feedback.textContent = "Nice! That's your word. Tap next exercise.";
         Array.from(options.children).forEach((child) => child.setAttribute("disabled", "true"));
         button.classList.add("practise__card--correct");
-        setTimeout(() => {
-            Array.from(options.children).forEach((child) => child.removeAttribute("disabled"));
-            prepareAiPractiseQuestion();
-        }, 1100);
+        practiseState.awaitingNext = true;
+        options.classList.add("practise__options--disabled");
+        renderNextExerciseButton();
     } else {
         button.classList.add("practise__card--incorrect");
         feedback.textContent = "That's one of the new words. Try again.";
         setTimeout(() => button.classList.remove("practise__card--incorrect"), 900);
     }
-}
-
-function setPractiseMode(mode) {
-    if (mode !== "regular" && mode !== "ai") {
-        return;
-    }
-
-    const previousMode = practiseState.mode;
-    practiseState.mode = mode;
-
-    document.querySelectorAll(".practise__mode-button").forEach((button) => {
-        button.classList.toggle(
-            "practise__mode-button--active",
-            button.dataset.mode === mode
-        );
-    });
-
-    const regularSection = document.getElementById("practiseRegularSection");
-    const aiSection = document.getElementById("practiseAiSection");
-
-    regularSection?.classList.toggle("practise__section--hidden", mode !== "regular");
-    aiSection?.classList.toggle("practise__section--hidden", mode !== "ai");
-
-    if (mode === "regular") {
-        if (practiseState.entries.length >= 4) {
-            if (practiseState.currentQuestion && previousMode === "regular") {
-                renderPractiseQuestion();
-            } else {
-                preparePractiseQuestion();
-            }
-        }
-    } else if (mode === "ai") {
-        updateAiPractiseAvailability();
-        if (
-            practiseState.entries.length > 0 &&
-            !practiseState.aiQuestion &&
-            !practiseState.aiLoading
-        ) {
-            prepareAiPractiseQuestion();
-        }
-    }
-}
-
-function initPractiseModeToggle() {
-    document.querySelectorAll(".practise__mode-button").forEach((button) => {
-        button.addEventListener("click", () => {
-            const mode = button.dataset.mode;
-            if (mode) {
-                setPractiseMode(mode);
-            }
-        });
-    });
 }
 
 function showStatus(element, message, isError = true) {
@@ -767,6 +861,7 @@ function updateAuthState(authenticated, username) {
         tabBar?.classList.remove("tab-bar--hidden");
         switchView("dictionary");
         fetchEntries();
+        updateAiPractiseAvailability();
     } else {
         if (greeting) {
             greeting.textContent = "";
@@ -775,7 +870,6 @@ function updateAuthState(authenticated, username) {
         tabBar?.classList.add("tab-bar--hidden");
         clearEntriesList("Sign in to see your saved words.");
         resetPractiseState("Sign in to start practising.");
-        setPractiseMode("regular");
         switchView("auth");
     }
 }
@@ -829,8 +923,15 @@ function renderEntryExample(example) {
     const exampleEnglish = document.getElementById("entryModalExampleEnglish");
     const exampleButton = document.getElementById("entryModalExampleButton");
     const examplePronounceButton = document.getElementById("entryModalExamplePronounceButton");
+    const exampleRefreshButton = document.getElementById("entryModalExampleRefreshButton");
 
-    if (!exampleDanish || !exampleEnglish || !exampleButton || !examplePronounceButton) {
+    if (
+        !exampleDanish ||
+        !exampleEnglish ||
+        !exampleButton ||
+        !examplePronounceButton ||
+        !exampleRefreshButton
+    ) {
         return;
     }
 
@@ -842,30 +943,39 @@ function renderEntryExample(example) {
         exampleEnglish.textContent = example.english || "";
         exampleButton.classList.add("is-hidden");
         examplePronounceButton.classList.toggle("is-hidden", !example.danish);
+        exampleRefreshButton.classList.remove("is-hidden");
+        exampleRefreshButton.dataset.entryId = entryModalState.entryId;
     } else {
         exampleDanish.textContent = formatDanishText("", "No example yet.");
         exampleEnglish.textContent = "";
         exampleButton.textContent = "Generate example";
         exampleButton.classList.remove("is-hidden");
         examplePronounceButton.classList.add("is-hidden");
+        exampleRefreshButton.classList.add("is-hidden");
+        exampleRefreshButton.dataset.entryId = entryModalState.entryId;
     }
 }
 
-async function showEntryExample() {
+async function showEntryExample(forceRefresh = false) {
     const exampleDanish = document.getElementById("entryModalExampleDanish");
     const exampleEnglish = document.getElementById("entryModalExampleEnglish");
     const exampleButton = document.getElementById("entryModalExampleButton");
+    const exampleRefreshButton = document.getElementById("entryModalExampleRefreshButton");
     if (!exampleDanish || !exampleEnglish || !exampleButton || !entryModalState.entryId) {
         return;
     }
 
-    exampleButton.setAttribute("disabled", "true");
-    exampleButton.textContent = "Generating…";
+    if (!exampleButton.classList.contains("is-hidden")) {
+        exampleButton.setAttribute("disabled", "true");
+        exampleButton.textContent = "Generating…";
+    }
+    exampleRefreshButton?.setAttribute("disabled", "true");
     exampleDanish.textContent = "Working on a Danish example…";
     exampleEnglish.textContent = "";
 
     try {
-        const response = await fetch(`/entries/${entryModalState.entryId}/example`, {
+        const suffix = forceRefresh ? "?force=1" : "";
+        const response = await fetch(`/entries/${entryModalState.entryId}/example${suffix}`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
@@ -897,6 +1007,8 @@ async function showEntryExample() {
     } finally {
         renderEntryExample(entryModalState.example);
         exampleButton.removeAttribute("disabled");
+        exampleButton.textContent = "Generate example";
+        exampleRefreshButton?.removeAttribute("disabled");
     }
 }
 
@@ -1079,6 +1191,7 @@ async function checkAuthStatus() {
         const response = await fetch("/auth/status");
         const data = await response.json();
         updateAuthState(Boolean(data.authenticated), data.username || null);
+        setExerciseMode("flashcard");
     } catch (error) {
         console.error("Error checking auth:", error);
         updateAuthState(false, null);
@@ -1110,6 +1223,14 @@ function initApp() {
                 playPronunciation(entryId, "example");
             }
         });
+    document.getElementById("entryModalExampleRefreshButton")?.addEventListener("click", () => {
+        showEntryExample(true);
+    });
+    document.getElementById("practiseClozeCheck")?.addEventListener("click", () => {
+        checkClozeAnswer();
+    });
+    document.getElementById("practiseClozeShowHint")?.addEventListener("click", revealClozeHint);
+    document.getElementById("practiseClozeGiveUp")?.addEventListener("click", giveUpCloze);
     document.getElementById("entryModalClose")?.addEventListener("click", hideEntryModal);
     document.getElementById("entryModal")?.addEventListener("click", (event) => {
         if (event.target.id === "entryModal") {
@@ -1129,12 +1250,11 @@ function initApp() {
         tab.addEventListener("click", () => switchView(tab.dataset.view));
     });
 
-    initPractiseModeToggle();
     clearEntriesList("Sign in to see your saved words.");
     updateDirectionUI();
     checkAuthStatus();
     resetPractiseState("Sign in to start practising.");
-    setPractiseMode("regular");
+    updateAiPractiseAvailability();
 }
 
 document.addEventListener("DOMContentLoaded", initApp);
