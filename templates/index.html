@@ -134,11 +134,14 @@
 
     <div class="modal modal--hidden" id="entryModal" role="dialog" aria-modal="true">
         <div class="modal__dialog">
-            <h3 class="modal__title" id="entryModalTitle">Entry details</h3>
-            <p class="modal__text" id="entryModalBody"></p>
+            <div class="modal__entry">
+                <p class="modal__line modal__line--danish" id="entryModalDanish"></p>
+                <p class="modal__line" id="entryModalEnglish"></p>
+            </div>
             <div class="modal__example">
-                <button class="btn btn--secondary" id="entryModalExampleButton">Show example use</button>
-                <p class="modal__example-text" id="entryModalExampleText"></p>
+                <button class="btn btn--secondary" id="entryModalExampleButton">Generate example</button>
+                <p class="modal__example-text modal__example-text--danish" id="entryModalExampleDanish"></p>
+                <p class="modal__example-text" id="entryModalExampleEnglish"></p>
             </div>
             <div class="modal__footer">
                 <button class="modal__close" id="entryModalClose">Close</button>

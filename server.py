@@ -10,6 +10,8 @@ load_dotenv()
 
 from source import DictionaryEntry, User, database, llm_actions
 
+import json
+
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-secret-key")
 
@@ -156,12 +158,25 @@ def add_entry():
 @app.route("/entries", methods=["GET"])
 @login_required
 def list_entries():
+    def parse_notes(entry: DictionaryEntry):
+        try:
+            data = json.loads(entry.notes or "")
+            if isinstance(data, dict):
+                danish = (data.get("example_da") or data.get("danish") or "").strip()
+                english = (data.get("example_en") or data.get("english") or "").strip()
+                if danish or english:
+                    return {"danish": danish, "english": english}
+        except Exception:
+            pass
+        return None
+
     entries = [
         {
             "id": entry.id,
             "text": entry.text,
             "translation": entry.translation,
             "notes": entry.notes,
+            "example": parse_notes(entry),
         }
         for entry in (
             DictionaryEntry.select()
@@ -187,15 +202,33 @@ def entry_example(entry_id: int):
         return jsonify({"error": "The entry is missing a word or translation."}), 400
 
     try:
-        example = llm_actions.generate_usage_example(target_text, target_translation)
+        cached = json.loads(entry.notes or "")
+        if isinstance(cached, dict):
+            danish = (cached.get("example_da") or cached.get("danish") or "").strip()
+            english = (cached.get("example_en") or cached.get("english") or "").strip()
+            if danish or english:
+                return jsonify({"example": {"danish": danish, "english": english}})
+    except Exception:
+        pass
+
+    try:
+        example = llm_actions.generate_usage_example_pair(target_text, target_translation)
     except ValueError as exc:
         return jsonify({"error": str(exc) or "Unable to generate an example."}), 400
     except Exception:
         app.logger.exception("Failed to generate usage example for entry %s", entry_id)
         return jsonify({"error": "Unable to generate an example right now."}), 502
 
-    if not example:
+    if not example or not (example.get("danish") or example.get("english")):
         return jsonify({"error": "No example was generated."}), 502
+
+    entry.notes = json.dumps(
+        {
+            "example_da": example.get("danish") or "",
+            "example_en": example.get("english") or "",
+        }
+    )
+    entry.save()
 
     return jsonify({"example": example})
 

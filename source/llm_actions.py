@@ -179,3 +179,29 @@ def generate_usage_example(target_text: str, target_translation: str) -> str:
             {"role": "user", "content": user_prompt},
         ]
     ).strip()
+
+
+def translate_example_to_english(example_danish: str) -> str:
+    """Translate a Danish example sentence/dialogue into English using ChatGPT."""
+    clean = (example_danish or "").strip()
+    if not clean:
+        return ""
+
+    translation_prompt = (
+        "You are a precise translator. Convert the Danish example into natural English. "
+        "Keep the meaning and tone, and avoid adding explanations."
+    )
+
+    return _chat(
+        [
+            {"role": "system", "content": translation_prompt},
+            {"role": "user", "content": clean},
+        ]
+    ).strip()
+
+
+def generate_usage_example_pair(target_text: str, target_translation: str) -> dict:
+    """Generate a Danish example and its English translation."""
+    example_da = generate_usage_example(target_text, target_translation)
+    example_en = translate_example_to_english(example_da)
+    return {"danish": example_da, "english": example_en}

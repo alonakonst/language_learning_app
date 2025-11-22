@@ -303,10 +303,24 @@ body {
     font-size: 1.1rem;
 }
 
-.modal__text {
+.modal__title {
+    display: none;
+}
+
+.modal__entry {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.modal__line {
     margin: 0;
     line-height: 1.5;
     font-size: 0.98rem;
+}
+
+.modal__line--danish {
+    font-weight: 700;
 }
 
 .modal__example {
@@ -319,6 +333,10 @@ body {
     margin: 0;
     line-height: 1.45;
     color: #0f172a;
+}
+
+.modal__example-text--danish {
+    font-weight: 600;
 }
 
 .modal__footer {

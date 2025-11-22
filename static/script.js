@@ -16,10 +16,19 @@ const practiseState = {
 const entryModalState = {
     entryId: null,
     entryText: "",
+    example: null,
 };
 
 function toDisplayText(value) {
-    return (value ?? "").toString().trim().toLowerCase();
+    return (value ?? "").toString().trim();
+}
+
+function formatDanishText(value, fallback = "") {
+    const text = toDisplayText(value);
+    if (text) {
+        return `🇩🇰 ${text}`;
+    }
+    return fallback ? `🇩🇰 ${fallback}` : "";
 }
 
 function escapeRegExp(value) {
@@ -50,11 +59,20 @@ function normalizeEntryForDisplay(entry) {
     if (!entry) {
         return null;
     }
+
+    const normalizedExample = entry.example
+        ? {
+              danish: toDisplayText(entry.example.danish),
+              english: toDisplayText(entry.example.english),
+          }
+        : null;
+
     return {
         ...entry,
         text: toDisplayText(entry.text),
         translation: toDisplayText(entry.translation),
         notes: toDisplayText(entry.notes),
+        example: normalizedExample,
     };
 }
 
@@ -764,41 +782,71 @@ function updateAuthState(authenticated, username) {
 
 function showEntryDetails(entry) {
     const modal = document.getElementById("entryModal");
-    const title = document.getElementById("entryModalTitle");
-    const body = document.getElementById("entryModalBody");
-    const exampleText = document.getElementById("entryModalExampleText");
+    const danishLine = document.getElementById("entryModalDanish");
+    const englishLine = document.getElementById("entryModalEnglish");
+    const exampleDanish = document.getElementById("entryModalExampleDanish");
+    const exampleEnglish = document.getElementById("entryModalExampleEnglish");
     const exampleButton = document.getElementById("entryModalExampleButton");
 
-    if (!modal || !title || !body || !exampleText || !exampleButton || !entry) {
+    if (
+        !modal ||
+        !danishLine ||
+        !englishLine ||
+        !exampleDanish ||
+        !exampleEnglish ||
+        !exampleButton ||
+        !entry
+    ) {
         return;
     }
 
     entryModalState.entryId = entry.id;
     entryModalState.entryText = toDisplayText(entry.translation || entry.text);
+    entryModalState.example = entry.example || null;
 
-    title.textContent = toDisplayText(entry.text) || "word details";
+    danishLine.textContent = formatDanishText(entry.translation, "No Danish text yet");
+    englishLine.textContent = toDisplayText(entry.text) || "No English text yet";
 
-    const translation = toDisplayText(entry.translation) || "no translation yet";
-    const notes = toDisplayText(entry.notes) || "notes: n/a";
-
-    body.textContent = `${translation} — ${notes}`;
-    exampleText.textContent = "";
+    renderEntryExample(entryModalState.example);
     exampleButton.removeAttribute("disabled");
-    exampleButton.textContent = "Show example use";
+    renderEntryExample(entryModalState.example);
 
     modal.classList.remove("modal--hidden");
 }
 
-async function showEntryExample() {
-    const exampleText = document.getElementById("entryModalExampleText");
+function renderEntryExample(example) {
+    const exampleDanish = document.getElementById("entryModalExampleDanish");
+    const exampleEnglish = document.getElementById("entryModalExampleEnglish");
     const exampleButton = document.getElementById("entryModalExampleButton");
-    if (!exampleText || !exampleButton || !entryModalState.entryId) {
+
+    if (!exampleDanish || !exampleEnglish || !exampleButton) {
+        return;
+    }
+
+    if (example && (example.danish || example.english)) {
+        exampleDanish.textContent = formatDanishText(example.danish);
+        exampleEnglish.textContent = example.english || "";
+        exampleButton.classList.add("is-hidden");
+    } else {
+        exampleDanish.textContent = formatDanishText("", "No example yet.");
+        exampleEnglish.textContent = "";
+        exampleButton.textContent = "Generate example";
+        exampleButton.classList.remove("is-hidden");
+    }
+}
+
+async function showEntryExample() {
+    const exampleDanish = document.getElementById("entryModalExampleDanish");
+    const exampleEnglish = document.getElementById("entryModalExampleEnglish");
+    const exampleButton = document.getElementById("entryModalExampleButton");
+    if (!exampleDanish || !exampleEnglish || !exampleButton || !entryModalState.entryId) {
         return;
     }
 
     exampleButton.setAttribute("disabled", "true");
     exampleButton.textContent = "Generating…";
-    exampleText.textContent = "Working on an example…";
+    exampleDanish.textContent = "Working on a Danish example…";
+    exampleEnglish.textContent = "";
 
     try {
         const response = await fetch(`/entries/${entryModalState.entryId}/example`, {
@@ -810,23 +858,28 @@ async function showEntryExample() {
 
         if (response.status === 401) {
             updateAuthState(false, null);
-            exampleText.textContent = "Please log in again to view examples.";
+            exampleDanish.textContent = "Please log in again to view examples.";
             return;
         }
 
         const data = await response.json();
         if (!response.ok) {
-            exampleText.textContent = data.error || "Could not load an example.";
+            exampleDanish.textContent = data.error || "Could not load an example.";
             return;
         }
 
-        const example = data.example || "";
-        exampleText.innerHTML = highlightTarget(example, entryModalState.entryText);
+        const example = data.example || {};
+        entryModalState.example = {
+            danish: toDisplayText(example.danish),
+            english: toDisplayText(example.english),
+        };
+        renderEntryExample(entryModalState.example);
+        fetchEntries();
     } catch (error) {
         console.error("Error fetching example:", error);
-        exampleText.textContent = "Unable to load an example right now.";
+        exampleDanish.textContent = "Unable to load an example right now.";
     } finally {
-        exampleButton.textContent = "Show example use";
+        renderEntryExample(entryModalState.example);
         exampleButton.removeAttribute("disabled");
     }
 }
