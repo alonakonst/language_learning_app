@@ -111,6 +111,10 @@
                             </div>
                             <button class="btn btn--secondary practise__giveup" id="practiseClozeGiveUp">I give up</button>
                             <p class="practise__feedback" id="practiseClozeFeedback"></p>
+                            <div class="practise__wordbar is-hidden" id="practiseClozeWordBar">
+                                <p class="practise__wordbar-label">Tap any word to add it:</p>
+                                <div class="practise__words" id="practiseClozeWords"></div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -161,6 +165,7 @@
                     <input type="text" id="addWordDanish" placeholder="Add your Danish translation">
                 </label>
                 <p class="form-status" id="addWordStatus"></p>
+                <button class="btn btn--secondary" id="addWordTranslate">Suggest translation</button>
             </div>
             <div class="modal__footer add-modal__actions">
                 <button class="modal__close" id="addWordCancel">Cancel</button>

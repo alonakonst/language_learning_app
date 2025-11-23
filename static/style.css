@@ -447,6 +447,44 @@ body {
     color: #000000;
 }
 
+.practise__wordbar {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 0.75rem 0.75rem 0.5rem;
+    background: #f5f5f5;
+    border-radius: 10px;
+}
+
+.practise__wordbar-label {
+    margin: 0;
+    font-size: 0.9rem;
+    color: #111111;
+}
+
+.practise__words {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+}
+
+.practise__word {
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    background: #ffffff;
+    border-radius: 999px;
+    padding: 0.35rem 0.7rem;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: transform 0.1s ease, box-shadow 0.15s ease;
+}
+
+.practise__word:hover,
+.practise__word:focus-visible {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.08);
+    outline: none;
+}
+
 .practise__options {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));

@@ -179,6 +179,7 @@ function renderClozeQuestion() {
     const feedbackEl = document.getElementById("practiseClozeFeedback");
     const checkButton = document.getElementById("practiseClozeCheck");
     const giveUpButton = document.getElementById("practiseClozeGiveUp");
+    hideClozeWordBar();
 
     if (
         !promptEl ||
@@ -261,8 +262,10 @@ function checkClozeAnswer() {
         inputEl.setAttribute("disabled", "true");
         giveUpButton?.setAttribute("disabled", "true");
         practiseState.awaitingNext = true;
+        renderClozeWordBar();
         renderNextExerciseButton();
     }
+    showClozeWordBarOnAttempt();
 }
 
 function levenshteinDistance(a, b) {
@@ -332,7 +335,191 @@ function giveUpCloze() {
     checkButton?.setAttribute("disabled", "true");
     giveUpButton?.setAttribute("disabled", "true");
     practiseState.awaitingNext = true;
+    renderClozeWordBar();
     renderNextExerciseButton();
+    showClozeWordBarOnAttempt();
+}
+
+function hideClozeWordBar() {
+    const bar = document.getElementById("practiseClozeWordBar");
+    const words = document.getElementById("practiseClozeWords");
+    bar?.classList.add("is-hidden");
+    if (words) {
+        words.innerHTML = "";
+    }
+}
+
+function getClozeSentence() {
+    if (!practiseState.clozeQuestion) {
+        return "";
+    }
+    const prompt = toDisplayText(practiseState.clozeQuestion.prompt);
+    const answer = toDisplayText(practiseState.clozeQuestion.answer);
+    if (!prompt) {
+        return "";
+    }
+    if (prompt.includes("_____") && answer) {
+        return prompt.replace("_____", answer);
+    }
+    return prompt;
+}
+
+function renderClozeWordBar() {
+    const bar = document.getElementById("practiseClozeWordBar");
+    const wordsContainer = document.getElementById("practiseClozeWords");
+    if (!bar || !wordsContainer) {
+        return;
+    }
+
+    const sentence = getClozeSentence();
+    const targetPhrase = toDisplayText(practiseState.clozeQuestion?.answer || "");
+    const targetWord = targetPhrase.toLowerCase();
+    const targetParts = new Set(
+        targetPhrase
+            .toLowerCase()
+            .match(/[A-Za-zÆØÅæøå]+/g)
+            ?.map((part) => part.trim())
+            .filter(Boolean) || []
+    );
+    if (!sentence) {
+        hideClozeWordBar();
+        return;
+    }
+
+    wordsContainer.innerHTML = "";
+    const matches = Array.from(sentence.matchAll(/[A-Za-zÆØÅæøå]+/g)).map((match) => ({
+        word: match[0],
+        start: match.index,
+        end: match.index + match[0].length,
+    }));
+
+    if (matches.length === 0) {
+        hideClozeWordBar();
+        return;
+    }
+
+    const commonWords = new Set(
+        [
+            "jeg",
+            "du",
+            "han",
+            "hun",
+            "vi",
+            "i",
+            "de",
+            "det",
+            "den",
+            "der",
+            "en",
+            "et",
+            "og",
+            "eller",
+            "men",
+            "ikke",
+            "med",
+            "til",
+            "for",
+            "som",
+            "på",
+            "af",
+            "er",
+            "var",
+            "bliver",
+            "blive",
+            "have",
+            "har",
+            "min",
+            "mit",
+            "mine",
+            "din",
+            "dit",
+            "dine",
+            "sin",
+            "sit",
+            "sine",
+            "vores",
+            "jeres",
+            "deres",
+            "end",
+            "at",
+            "kan",
+            "skal",
+            "vil",
+            "må",
+            "så",
+        ].map((w) => w.toLowerCase())
+    );
+
+    const tokens = matches.map((m) => {
+        const lower = toDisplayText(m.word).toLowerCase();
+        return {
+            ...m,
+            lower,
+            isTarget: lower === targetWord,
+            isTargetPart: targetParts.has(lower),
+            isCommon: commonWords.has(lower),
+            used: false,
+        };
+    });
+
+    const phrases = [];
+
+    tokens.forEach((token, index) => {
+        if (token.used || token.isTarget || token.isTargetPart) {
+            return;
+        }
+        if (token.isCommon) {
+            return;
+        }
+
+        let startIndex = index;
+        while (startIndex > 0) {
+            const prev = tokens[startIndex - 1];
+            const between = sentence.slice(prev.end, tokens[startIndex].start);
+            if (prev.used || !prev.isCommon || /\S/.test(between.replace(/\s+/g, ""))) {
+                break;
+            }
+            startIndex -= 1;
+        }
+
+        const phraseStart = tokens[startIndex].start;
+        const phraseEnd = token.end;
+        const phrase = sentence.slice(phraseStart, phraseEnd).trim();
+        if (phrase) {
+            for (let i = startIndex; i <= index; i += 1) {
+                tokens[i].used = true;
+            }
+            phrases.push(phrase);
+        }
+    });
+
+    if (phrases.length === 0) {
+        hideClozeWordBar();
+        return;
+    }
+
+    phrases.forEach((text) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "practise__word";
+        button.textContent = text;
+        button.addEventListener("click", () => {
+            openAddWordModal({
+                danish: text,
+            });
+        });
+        wordsContainer.appendChild(button);
+    });
+
+    bar.classList.remove("is-hidden");
+}
+
+function showClozeWordBarOnAttempt() {
+    const wordBar = document.getElementById("practiseClozeWordBar");
+    if (!wordBar) {
+        return;
+    }
+    renderClozeWordBar();
 }
 
 function renderExerciseVisibility() {
@@ -572,6 +759,7 @@ function renderAiPractiseQuestion() {
 
         const englishValue = toDisplayText(option.label);
         const danishValue = toDisplayText(option.translation || option.metadata?.translation || "");
+        const presentedValue = optionLabel;
 
         const addButton = document.createElement("button");
         addButton.type = "button";
@@ -580,10 +768,17 @@ function renderAiPractiseQuestion() {
         addButton.title = "Add to dictionary";
         addButton.addEventListener("click", (event) => {
             event.stopPropagation();
-            openAddWordModal({
-                english: englishValue,
-                danish: danishValue,
-            });
+            if (isEnToDa) {
+                openAddWordModal({
+                    english: "",
+                    danish: presentedValue,
+                });
+            } else {
+                openAddWordModal({
+                    english: presentedValue,
+                    danish: "",
+                });
+            }
         });
 
         wrapper.appendChild(addButton);
@@ -1220,6 +1415,10 @@ function openAddWordModal({ english = "", danish = "" } = {}) {
 
     addWordState.english = toDisplayText(english);
     addWordState.danish = toDisplayText(danish);
+    if (addWordState.english && addWordState.danish) {
+        addWordState.danish = "";
+    }
+
     englishField.value = addWordState.english;
     danishField.value = addWordState.danish;
     showStatus(status, "");
@@ -1236,6 +1435,63 @@ function closeAddWordModal() {
     }
     showStatus(status, "");
     modal.classList.add("modal--hidden");
+}
+
+async function translateAddWord() {
+    const englishField = document.getElementById("addWordEnglish");
+    const danishField = document.getElementById("addWordDanish");
+    const status = document.getElementById("addWordStatus");
+    if (!englishField || !danishField || !status) {
+        return;
+    }
+
+    const englishValue = englishField.value.trim();
+    const danishValue = danishField.value.trim();
+
+    let sourceField = englishField;
+    let targetField = danishField;
+    let direction = "en-da";
+
+    if (danishValue && !englishValue) {
+        sourceField = danishField;
+        targetField = englishField;
+        direction = "da-en";
+    } else if (!englishValue && !danishValue) {
+        showStatus(status, "Type something to translate.");
+        return;
+    }
+
+    const text = sourceField.value.trim();
+
+    if (!text) {
+        showStatus(status, "Type something to translate.");
+        return;
+    }
+
+    showStatus(status, "Translating…", false);
+
+    try {
+        const response = await fetch("/translate", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ text, direction }),
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+            showStatus(status, data.error || "Translation failed.");
+            return;
+        }
+
+        const translation = toDisplayText(data.translation || "");
+        targetField.value = translation;
+        showStatus(status, "Filled suggestion.", false);
+    } catch (error) {
+        console.error("Error translating add-word entry:", error);
+        showStatus(status, "Unable to translate right now.");
+    }
 }
 
 async function saveWordFromModal() {
@@ -1373,6 +1629,7 @@ function initApp() {
             hideEntryModal();
         }
     });
+    document.getElementById("addWordTranslate")?.addEventListener("click", translateAddWord);
     document.getElementById("addWordSave")?.addEventListener("click", saveWordFromModal);
     document.getElementById("addWordCancel")?.addEventListener("click", closeAddWordModal);
     document.getElementById("addWordModal")?.addEventListener("click", (event) => {
