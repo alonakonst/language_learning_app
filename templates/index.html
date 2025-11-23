@@ -87,33 +87,56 @@
         <section id="practiseView" class="page">
             <div class="card">
                 <h2 class="card__title">Practise</h2>
-                <div class="practise__section" id="practiseAiSection">
-                    <p class="practise__empty-message" id="practiseAiEmptyMessage">
-                        Save at least one entry to unlock AI practise.
-                    </p>
-                    <div class="practise__body practise__body--hidden" id="practiseAiBody">
-                        <div class="practise__flashcards" id="practiseFlashcards">
-                            <p class="practise__prompt" id="practiseAiPrompt">Loading…</p>
-                            <div class="practise__options practise__options--cards" id="practiseAiOptions"></div>
-                            <p class="practise__feedback" id="practiseAiFeedback"></p>
-                        </div>
-                        <div class="practise__cloze" id="practiseClozeBlock">
-                            <p class="practise__prompt" id="practiseClozePrompt">
-                                Fill in the blank with the correct Danish word or phrase.
-                            </p>
-                            <div class="practise__hint-row">
-                                <p class="practise__hint practise__hint--hidden" id="practiseClozeHint"></p>
-                                <button class="btn btn--ghost" id="practiseClozeShowHint">Show hint</button>
+                <div class="practise__mode-page" id="practiseModePage">
+                    <p class="practise__mode-desc">Choose what to practise.</p>
+                    <div class="practise__mode-stack" id="practiseModeSelector">
+                        <button class="practise__mode-card" data-mode="flash_en">
+                            Flashcards: English prompts
+                            <span>See Danish answers for your English words.</span>
+                        </button>
+                        <button class="practise__mode-card" data-mode="flash_da">
+                            Flashcards: Danish prompts
+                            <span>See English answers for your Danish words.</span>
+                        </button>
+                        <button class="practise__mode-card" data-mode="cloze">
+                            Contextual sentences
+                            <span>Fill in blanks inside Danish sentences.</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="practise__content-page is-hidden" id="practiseContentPage">
+                    <div class="practise__content-head">
+                        <button class="practise__back" id="practiseBackButton">← Back</button>
+                        <p class="practise__mode-label" id="practiseModeLabel"></p>
+                    </div>
+                    <div class="practise__section" id="practiseAiSection">
+                        <p class="practise__empty-message" id="practiseAiEmptyMessage">
+                            Save at least one entry to unlock AI practise.
+                        </p>
+                        <div class="practise__body practise__body--hidden" id="practiseAiBody">
+                            <div class="practise__flashcards" id="practiseFlashcards">
+                                <p class="practise__prompt" id="practiseAiPrompt">Loading…</p>
+                                <div class="practise__options practise__options--cards" id="practiseAiOptions"></div>
+                                <p class="practise__feedback" id="practiseAiFeedback"></p>
                             </div>
-                            <div class="practise__input-row">
-                                <input type="text" id="practiseClozeInput" placeholder="Type the Danish word" />
-                                <button class="btn btn--primary" id="practiseClozeCheck">Check</button>
-                            </div>
-                            <button class="btn btn--secondary practise__giveup" id="practiseClozeGiveUp">I give up</button>
-                            <p class="practise__feedback" id="practiseClozeFeedback"></p>
-                            <div class="practise__wordbar is-hidden" id="practiseClozeWordBar">
-                                <p class="practise__wordbar-label">Tap any word to add it:</p>
-                                <div class="practise__words" id="practiseClozeWords"></div>
+                            <div class="practise__cloze" id="practiseClozeBlock">
+                                <p class="practise__prompt" id="practiseClozePrompt">
+                                    Fill in the blank with the correct Danish word or phrase.
+                                </p>
+                                <div class="practise__hint-row">
+                                    <p class="practise__hint practise__hint--hidden" id="practiseClozeHint"></p>
+                                    <button class="btn btn--ghost" id="practiseClozeShowHint">Show hint</button>
+                                </div>
+                                <div class="practise__input-row">
+                                    <input type="text" id="practiseClozeInput" placeholder="Type the Danish word" />
+                                    <button class="btn btn--primary" id="practiseClozeCheck">Check</button>
+                                </div>
+                                <button class="btn btn--secondary practise__giveup" id="practiseClozeGiveUp">I give up</button>
+                                <p class="practise__feedback" id="practiseClozeFeedback"></p>
+                                <div class="practise__wordbar is-hidden" id="practiseClozeWordBar">
+                                    <p class="practise__wordbar-label">Tap any word to add it:</p>
+                                    <div class="practise__words" id="practiseClozeWords"></div>
+                                </div>
                             </div>
                         </div>
                     </div>

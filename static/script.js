@@ -10,7 +10,8 @@ const practiseState = {
     aiLoading: false,
     clozeQuestion: null,
     clozeLoading: false,
-    mode: "flashcard", // flashcard or cloze
+    mode: "flash_en", // flash_en, flash_da, cloze
+    modeSelected: false,
     awaitingNext: false,
 };
 
@@ -88,6 +89,10 @@ function normalizeEntries(entries = []) {
         .filter((entry) => entry !== null);
 }
 
+function isFlashMode(mode) {
+    return mode === "flash_en" || mode === "flash_da";
+}
+
 function shuffle(array) {
     for (let i = array.length - 1; i > 0; i -= 1) {
         const j = Math.floor(Math.random() * (i + 1));
@@ -103,6 +108,8 @@ function resetPractiseState(message = "Sign in to start practising.") {
     practiseState.aiLoading = false;
     practiseState.clozeQuestion = null;
     practiseState.clozeLoading = false;
+    practiseState.mode = "flash_en";
+    practiseState.modeSelected = false;
 
     const aiEmptyMessage = document.getElementById("practiseAiEmptyMessage");
     const aiBody = document.getElementById("practiseAiBody");
@@ -123,6 +130,23 @@ function resetPractiseState(message = "Sign in to start practising.") {
     }
     if (aiFeedback) {
         aiFeedback.textContent = "";
+    }
+    renderPractisePages();
+}
+
+function renderPractisePages() {
+    const modePage = document.getElementById("practiseModePage");
+    const contentPage = document.getElementById("practiseContentPage");
+    const modeLabel = document.getElementById("practiseModeLabel");
+
+    if (modePage) {
+        modePage.classList.toggle("is-hidden", practiseState.modeSelected);
+    }
+    if (contentPage) {
+        contentPage.classList.toggle("is-hidden", !practiseState.modeSelected);
+    }
+    if (modeLabel) {
+        modeLabel.textContent = practiseState.modeSelected ? getModeLabel(practiseState.mode) : "";
     }
 }
 
@@ -146,6 +170,16 @@ function updateAiPractiseAvailability() {
         return;
     }
 
+    if (!practiseState.modeSelected) {
+        aiEmptyMessage.textContent = "Pick an exercise type to start.";
+        aiEmptyMessage.classList.remove("is-hidden");
+        aiBody.classList.add("practise__body--hidden");
+        practiseState.aiQuestion = null;
+        practiseState.clozeQuestion = null;
+        practiseState.aiAllowSelection = true;
+        return;
+    }
+
     if (practiseState.entries.length === 0) {
         aiEmptyMessage.textContent = "Save at least one entry to unlock AI practise.";
         aiEmptyMessage.classList.remove("is-hidden");
@@ -158,7 +192,7 @@ function updateAiPractiseAvailability() {
     aiEmptyMessage.classList.add("is-hidden");
     aiBody.classList.remove("practise__body--hidden");
 
-    if (practiseState.mode === "flashcard") {
+    if (isFlashMode(practiseState.mode)) {
         if (!practiseState.aiQuestion && !practiseState.aiLoading) {
             prepareAiPractiseQuestion();
         }
@@ -312,7 +346,7 @@ function renderNextExerciseButton() {
         control.textContent = "Next exercise";
         container.appendChild(control);
         control.addEventListener("click", () => {
-            setExerciseMode(Math.random() < 0.5 ? "flashcard" : "cloze");
+            setExerciseMode(practiseState.mode);
             control.remove();
         });
     }
@@ -528,12 +562,12 @@ function renderExerciseVisibility() {
     if (!flashcards || !cloze) {
         return;
     }
-    flashcards.classList.toggle("is-hidden", practiseState.mode !== "flashcard");
+    flashcards.classList.toggle("is-hidden", !isFlashMode(practiseState.mode));
     cloze.classList.toggle("is-hidden", practiseState.mode !== "cloze");
 }
 
 function setExerciseMode(mode) {
-    if (mode !== "flashcard" && mode !== "cloze") {
+    if (!isFlashMode(mode) && mode !== "cloze") {
         return;
     }
     practiseState.mode = mode;
@@ -542,13 +576,43 @@ function setExerciseMode(mode) {
     nextButton?.remove();
     renderExerciseVisibility();
 
-    if (mode === "flashcard") {
+    if (isFlashMode(mode)) {
         practiseState.aiQuestion = null;
+        practiseState.aiAllowSelection = true;
         prepareAiPractiseQuestion();
     } else {
         practiseState.clozeQuestion = null;
         prepareClozeQuestion();
     }
+
+    const modeButtons = document.querySelectorAll(".practise__mode-card");
+    modeButtons.forEach((btn) => {
+        btn.classList.toggle("practise__mode-card--active", btn.dataset.mode === practiseState.mode);
+    });
+    const modeLabel = document.getElementById("practiseModeLabel");
+    if (modeLabel) {
+        modeLabel.textContent = getModeLabel(practiseState.mode);
+    }
+}
+
+function enterPractiseMode(mode) {
+    if (!isFlashMode(mode) && mode !== "cloze") {
+        return;
+    }
+    practiseState.modeSelected = true;
+    setExerciseMode(mode);
+    renderPractisePages();
+    updateAiPractiseAvailability();
+}
+
+function showPractiseModeSelection() {
+    practiseState.modeSelected = false;
+    practiseState.awaitingNext = false;
+    practiseState.aiQuestion = null;
+    practiseState.clozeQuestion = null;
+    practiseState.aiAllowSelection = true;
+    renderPractisePages();
+    updateAiPractiseAvailability();
 }
 
 async function prepareClozeQuestion() {
@@ -556,7 +620,8 @@ async function prepareClozeQuestion() {
         practiseState.entries.length === 0 ||
         practiseState.clozeLoading ||
         !authState.authenticated ||
-        practiseState.mode !== "cloze"
+        practiseState.mode !== "cloze" ||
+        !practiseState.modeSelected
     ) {
         renderClozeQuestion();
         return;
@@ -640,7 +705,8 @@ async function prepareAiPractiseQuestion() {
         practiseState.entries.length === 0 ||
         practiseState.aiLoading ||
         !authState.authenticated ||
-        practiseState.mode !== "flashcard"
+        !isFlashMode(practiseState.mode) ||
+        !practiseState.modeSelected
     ) {
         return;
     }
@@ -685,7 +751,7 @@ async function prepareAiPractiseQuestion() {
             return;
         }
 
-        const questionType = Math.random() < 0.5 ? "en_to_da" : "da_to_en";
+        const questionType = practiseState.mode === "flash_da" ? "da_to_en" : "en_to_da";
         const targetEnglish = toDisplayText(data.target_text || "");
         const targetDanish = toDisplayText(data.prompt || target.translation || "");
 
@@ -863,6 +929,16 @@ function clearEntriesList(message = "No entries saved yet.") {
 
 function getDirection() {
     return document.getElementById("translationDirection")?.value ?? "en-da";
+}
+
+function getModeLabel(mode) {
+    if (mode === "flash_da") {
+        return "Flashcards: Danish prompts";
+    }
+    if (mode === "cloze") {
+        return "Contextual sentences";
+    }
+    return "Flashcards: English prompts";
 }
 
 function getFieldsByDirection() {
@@ -1111,6 +1187,7 @@ function updateAuthState(authenticated, username) {
         switchView("dictionary");
         fetchEntries();
         updateAiPractiseAvailability();
+        renderPractisePages();
     } else {
         if (greeting) {
             greeting.textContent = "";
@@ -1583,7 +1660,7 @@ async function checkAuthStatus() {
         const response = await fetch("/auth/status");
         const data = await response.json();
         updateAuthState(Boolean(data.authenticated), data.username || null);
-        setExerciseMode("flashcard");
+        setExerciseMode("flash_en");
     } catch (error) {
         console.error("Error checking auth:", error);
         updateAuthState(false, null);
@@ -1648,6 +1725,17 @@ function initApp() {
     const tabs = document.querySelectorAll(".tab");
     tabs.forEach((tab) => {
         tab.addEventListener("click", () => switchView(tab.dataset.view));
+    });
+
+    const practiseModeButtons = document.querySelectorAll(".practise__mode-card");
+    practiseModeButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+            enterPractiseMode(button.dataset.mode);
+        });
+    });
+
+    document.getElementById("practiseBackButton")?.addEventListener("click", () => {
+        showPractiseModeSelection();
     });
 
     clearEntriesList("Sign in to see your saved words.");
