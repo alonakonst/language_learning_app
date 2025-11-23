@@ -102,6 +102,112 @@ function normalizeEntries(entries = []) {
         .filter((entry) => entry !== null);
 }
 
+const COMMON_DA_WORDS = new Set(
+    [
+        "jeg",
+        "du",
+        "han",
+        "hun",
+        "vi",
+        "i",
+        "de",
+        "det",
+        "den",
+        "der",
+        "en",
+        "et",
+        "og",
+        "eller",
+        "men",
+        "ikke",
+        "med",
+        "til",
+        "for",
+        "som",
+        "på",
+        "af",
+        "er",
+        "var",
+        "bliver",
+        "blive",
+        "have",
+        "har",
+        "min",
+        "mit",
+        "mine",
+        "din",
+        "dit",
+        "dine",
+        "sin",
+        "sit",
+        "sine",
+        "vores",
+        "jeres",
+        "deres",
+        "end",
+        "at",
+        "kan",
+        "skal",
+        "vil",
+        "må",
+        "så",
+    ].map((w) => w.toLowerCase())
+);
+
+function extractNotablePhrases(sentence, targetPhrase = "") {
+    const normalizedTarget = toDisplayText(targetPhrase || "").toLowerCase();
+    const targetParts = new Set(
+        normalizedTarget.match(/[A-Za-zÆØÅæøå]+/g)?.map((p) => p.toLowerCase()) || []
+    );
+
+    const matches = Array.from(sentence.matchAll(/[A-Za-zÆØÅæøå]+/g)).map((match) => ({
+        word: match[0],
+        start: match.index,
+        end: match.index + match[0].length,
+    }));
+    if (matches.length === 0) {
+        return [];
+    }
+
+    const tokens = matches.map((m) => {
+        const lower = toDisplayText(m.word).toLowerCase();
+        return {
+            ...m,
+            lower,
+            isTarget: lower === normalizedTarget || targetParts.has(lower),
+            isCommon: COMMON_DA_WORDS.has(lower),
+            used: false,
+        };
+    });
+
+    const phrases = [];
+    tokens.forEach((token, index) => {
+        if (token.used || token.isTarget || token.isCommon) {
+            return;
+        }
+        let startIndex = index;
+        while (startIndex > 0) {
+            const prev = tokens[startIndex - 1];
+            const between = sentence.slice(prev.end, tokens[startIndex].start);
+            if (prev.used || !prev.isCommon || /\S/.test(between.replace(/\s+/g, ""))) {
+                break;
+            }
+            startIndex -= 1;
+        }
+        const phraseStart = tokens[startIndex].start;
+        const phraseEnd = token.end;
+        const phrase = sentence.slice(phraseStart, phraseEnd).trim();
+        if (phrase) {
+            for (let i = startIndex; i <= index; i += 1) {
+                tokens[i].used = true;
+            }
+            phrases.push(phrase);
+        }
+    });
+
+    return phrases;
+}
+
 function isFlashMode(mode) {
     return mode === "flash_en" || mode === "flash_da";
 }
@@ -430,125 +536,13 @@ function renderClozeWordBar() {
 
     const sentence = getClozeSentence();
     const targetPhrase = toDisplayText(practiseState.clozeQuestion?.answer || "");
-    const targetWord = targetPhrase.toLowerCase();
-    const targetParts = new Set(
-        targetPhrase
-            .toLowerCase()
-            .match(/[A-Za-zÆØÅæøå]+/g)
-            ?.map((part) => part.trim())
-            .filter(Boolean) || []
-    );
     if (!sentence) {
         hideClozeWordBar();
         return;
     }
 
     wordsContainer.innerHTML = "";
-    const matches = Array.from(sentence.matchAll(/[A-Za-zÆØÅæøå]+/g)).map((match) => ({
-        word: match[0],
-        start: match.index,
-        end: match.index + match[0].length,
-    }));
-
-    if (matches.length === 0) {
-        hideClozeWordBar();
-        return;
-    }
-
-    const commonWords = new Set(
-        [
-            "jeg",
-            "du",
-            "han",
-            "hun",
-            "vi",
-            "i",
-            "de",
-            "det",
-            "den",
-            "der",
-            "en",
-            "et",
-            "og",
-            "eller",
-            "men",
-            "ikke",
-            "med",
-            "til",
-            "for",
-            "som",
-            "på",
-            "af",
-            "er",
-            "var",
-            "bliver",
-            "blive",
-            "have",
-            "har",
-            "min",
-            "mit",
-            "mine",
-            "din",
-            "dit",
-            "dine",
-            "sin",
-            "sit",
-            "sine",
-            "vores",
-            "jeres",
-            "deres",
-            "end",
-            "at",
-            "kan",
-            "skal",
-            "vil",
-            "må",
-            "så",
-        ].map((w) => w.toLowerCase())
-    );
-
-    const tokens = matches.map((m) => {
-        const lower = toDisplayText(m.word).toLowerCase();
-        return {
-            ...m,
-            lower,
-            isTarget: lower === targetWord,
-            isTargetPart: targetParts.has(lower),
-            isCommon: commonWords.has(lower),
-            used: false,
-        };
-    });
-
-    const phrases = [];
-
-    tokens.forEach((token, index) => {
-        if (token.used || token.isTarget || token.isTargetPart) {
-            return;
-        }
-        if (token.isCommon) {
-            return;
-        }
-
-        let startIndex = index;
-        while (startIndex > 0) {
-            const prev = tokens[startIndex - 1];
-            const between = sentence.slice(prev.end, tokens[startIndex].start);
-            if (prev.used || !prev.isCommon || /\S/.test(between.replace(/\s+/g, ""))) {
-                break;
-            }
-            startIndex -= 1;
-        }
-
-        const phraseStart = tokens[startIndex].start;
-        const phraseEnd = token.end;
-        const phrase = sentence.slice(phraseStart, phraseEnd).trim();
-        if (phrase) {
-            for (let i = startIndex; i <= index; i += 1) {
-                tokens[i].used = true;
-            }
-            phrases.push(phrase);
-        }
-    });
+    const phrases = extractNotablePhrases(sentence, targetPhrase);
 
     if (phrases.length === 0) {
         hideClozeWordBar();
@@ -1339,6 +1333,38 @@ function renderEntryExamples(examples) {
 
         item.appendChild(head);
         item.appendChild(english);
+
+        const suggestions = extractNotablePhrases(ex.danish || "", entryModalState.entryText || "");
+        if (suggestions.length > 0) {
+            const wordbar = document.createElement("div");
+            wordbar.className = "modal__wordbar";
+
+            const label = document.createElement("p");
+            label.className = "modal__wordbar-label";
+            label.textContent = "Tap to save:";
+
+            const chips = document.createElement("div");
+            chips.className = "modal__wordchips";
+
+            suggestions.forEach((text) => {
+                const chip = document.createElement("button");
+                chip.type = "button";
+                chip.className = "practise__word";
+                chip.textContent = text;
+                chip.addEventListener("click", () => {
+                    openAddWordModal({
+                        danish: text,
+                        isExternalInput: false,
+                    });
+                });
+                chips.appendChild(chip);
+            });
+
+            wordbar.appendChild(label);
+            wordbar.appendChild(chips);
+            item.appendChild(wordbar);
+        }
+
         list.appendChild(item);
     });
 

@@ -439,6 +439,24 @@ body {
     color: #6b7280;
 }
 
+.modal__wordbar {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.modal__wordbar-label {
+    margin: 0;
+    font-size: 0.85rem;
+    color: #6b7280;
+}
+
+.modal__wordchips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+}
+
 .modal__example-actions-row {
     display: flex;
     align-items: center;
