@@ -18,12 +18,14 @@ const practiseState = {
 const addWordState = {
     english: "",
     danish: "",
+    isExternalInput: true,
 };
 
 const entryModalState = {
     entryId: null,
     entryText: "",
     example: null,
+    examples: [],
 };
 
 function toDisplayText(value) {
@@ -74,12 +76,23 @@ function normalizeEntryForDisplay(entry) {
           }
         : null;
 
+    const normalizedExamples = Array.isArray(entry.examples)
+        ? entry.examples
+              .map((ex) => ({
+                  danish: toDisplayText(ex.danish),
+                  english: toDisplayText(ex.english),
+              }))
+              .filter((ex) => ex.danish || ex.english)
+        : [];
+
     return {
         ...entry,
         text: toDisplayText(entry.text),
         translation: toDisplayText(entry.translation),
         notes: toDisplayText(entry.notes),
         example: normalizedExample,
+        examples: normalizedExamples,
+        is_external_input: Boolean(entry.is_external_input ?? true),
     };
 }
 
@@ -148,6 +161,11 @@ function renderPractisePages() {
     if (modeLabel) {
         modeLabel.textContent = practiseState.modeSelected ? getModeLabel(practiseState.mode) : "";
     }
+    const modeButtons = document.querySelectorAll(".practise__mode-card");
+    modeButtons.forEach((btn) => {
+        const active = practiseState.modeSelected && btn.dataset.mode === practiseState.mode;
+        btn.classList.toggle("practise__mode-card--active", active);
+    });
 }
 
 function setPractiseEntries(rawEntries) {
@@ -540,6 +558,7 @@ function renderClozeWordBar() {
         button.addEventListener("click", () => {
             openAddWordModal({
                 danish: text,
+                isExternalInput: false,
             });
         });
         wordsContainer.appendChild(button);
@@ -611,6 +630,8 @@ function showPractiseModeSelection() {
     practiseState.aiQuestion = null;
     practiseState.clozeQuestion = null;
     practiseState.aiAllowSelection = true;
+    const nextButton = document.getElementById("practiseNextExercise");
+    nextButton?.remove();
     renderPractisePages();
     updateAiPractiseAvailability();
 }
@@ -835,16 +856,18 @@ function renderAiPractiseQuestion() {
         addButton.addEventListener("click", (event) => {
             event.stopPropagation();
             if (isEnToDa) {
-                openAddWordModal({
-                    english: "",
-                    danish: presentedValue,
-                });
-            } else {
-                openAddWordModal({
-                    english: presentedValue,
-                    danish: "",
-                });
-            }
+            openAddWordModal({
+                english: "",
+                danish: presentedValue,
+                isExternalInput: false,
+            });
+        } else {
+            openAddWordModal({
+                english: presentedValue,
+                danish: "",
+                isExternalInput: false,
+            });
+        }
         });
 
         wrapper.appendChild(addButton);
@@ -1056,6 +1079,7 @@ async function SaveToDatabase() {
             body: JSON.stringify({
                 english: englishText,
                 danish: danishText,
+                is_external_input: true,
             }),
         });
 
@@ -1204,21 +1228,15 @@ function showEntryDetails(entry) {
     const modal = document.getElementById("entryModal");
     const danishLine = document.getElementById("entryModalDanish");
     const englishLine = document.getElementById("entryModalEnglish");
-    const exampleDanish = document.getElementById("entryModalExampleDanish");
-    const exampleEnglish = document.getElementById("entryModalExampleEnglish");
-    const exampleButton = document.getElementById("entryModalExampleButton");
     const pronounceButton = document.getElementById("entryModalPronounceButton");
-    const examplePronounceButton = document.getElementById("entryModalExamplePronounceButton");
+    const exampleButton = document.getElementById("entryModalExampleButton");
 
     if (
         !modal ||
         !danishLine ||
         !englishLine ||
-        !exampleDanish ||
-        !exampleEnglish ||
         !exampleButton ||
         !pronounceButton ||
-        !examplePronounceButton ||
         !entry
     ) {
         return;
@@ -1227,6 +1245,10 @@ function showEntryDetails(entry) {
     entryModalState.entryId = entry.id;
     entryModalState.entryText = toDisplayText(entry.translation || entry.text);
     entryModalState.example = entry.example || null;
+    entryModalState.examples = Array.isArray(entry.examples) ? entry.examples.map((ex) => ({
+        danish: toDisplayText(ex.danish),
+        english: toDisplayText(ex.english),
+    })) : (entry.example ? [entry.example] : []);
 
     const danishWord = toDisplayText(entry.translation);
     danishLine.innerHTML = danishWord
@@ -1235,59 +1257,90 @@ function showEntryDetails(entry) {
     englishLine.textContent = toDisplayText(entry.text) || "No English text yet";
     pronounceButton.dataset.entryId = entry.id;
     pronounceButton.classList.toggle("is-hidden", !entry.translation);
-    examplePronounceButton.dataset.entryId = entry.id;
 
-    renderEntryExample(entryModalState.example);
+    renderEntryExamples(entryModalState.examples);
     exampleButton.removeAttribute("disabled");
-    renderEntryExample(entryModalState.example);
 
     modal.classList.remove("modal--hidden");
 }
 
-function renderEntryExample(example) {
-    const exampleDanish = document.getElementById("entryModalExampleDanish");
-    const exampleEnglish = document.getElementById("entryModalExampleEnglish");
+function renderEntryExamples(examples) {
+    const list = document.getElementById("entryModalExamples");
     const exampleButton = document.getElementById("entryModalExampleButton");
-    const examplePronounceButton = document.getElementById("entryModalExamplePronounceButton");
-    const exampleRefreshButton = document.getElementById("entryModalExampleRefreshButton");
-
-    if (
-        !exampleDanish ||
-        !exampleEnglish ||
-        !exampleButton ||
-        !examplePronounceButton ||
-        !exampleRefreshButton
-    ) {
+    const addButton = document.getElementById("entryModalExampleAddButton");
+    if (!list || !exampleButton || !addButton) {
         return;
     }
 
-    if (example && (example.danish || example.english)) {
-        exampleDanish.innerHTML = highlightTarget(
-            formatDanishText(example.danish),
-            entryModalState.entryText
-        );
-        exampleEnglish.textContent = example.english || "";
-        exampleButton.classList.add("is-hidden");
-        examplePronounceButton.classList.toggle("is-hidden", !example.danish);
-        exampleRefreshButton.classList.remove("is-hidden");
-        exampleRefreshButton.dataset.entryId = entryModalState.entryId;
-    } else {
-        exampleDanish.textContent = formatDanishText("", "No example yet.");
-        exampleEnglish.textContent = "";
-        exampleButton.textContent = "Generate example";
+    list.innerHTML = "";
+
+    const normalized = Array.isArray(examples)
+        ? examples
+              .map((ex) => ({
+                  danish: toDisplayText(ex.danish),
+                  english: toDisplayText(ex.english),
+              }))
+              .filter((ex) => ex.danish || ex.english)
+        : [];
+
+    if (normalized.length === 0) {
+        list.innerHTML = '<p class="modal__example-empty">No examples yet.</p>';
         exampleButton.classList.remove("is-hidden");
-        examplePronounceButton.classList.add("is-hidden");
-        exampleRefreshButton.classList.add("is-hidden");
-        exampleRefreshButton.dataset.entryId = entryModalState.entryId;
+        addButton.classList.add("is-hidden");
+        return;
     }
+
+    normalized.forEach((ex, index) => {
+        const item = document.createElement("div");
+        item.className = "modal__example-item";
+
+        const head = document.createElement("div");
+        head.className = "modal__example-head modal__example-actions-row";
+
+        const pronounce = document.createElement("button");
+        pronounce.type = "button";
+        pronounce.className = "icon-button modal__audio";
+        pronounce.textContent = "🔊";
+        pronounce.title = "Play pronunciation";
+        pronounce.addEventListener("click", () => {
+            playPronunciation(entryModalState.entryId, "example", index);
+        });
+        pronounce.disabled = !ex.danish;
+        pronounce.classList.toggle("is-hidden", !ex.danish);
+
+        const danish = document.createElement("p");
+        danish.className = "modal__example-text modal__example-text--danish";
+        danish.innerHTML = highlightTarget(formatDanishText(ex.danish), entryModalState.entryText);
+
+        const deleteButton = document.createElement("button");
+        deleteButton.type = "button";
+        deleteButton.className = "modal__trash";
+        deleteButton.title = "Delete example";
+        deleteButton.textContent = "🗑";
+        deleteButton.addEventListener("click", () => deleteEntryExample(index));
+
+        head.appendChild(pronounce);
+        head.appendChild(danish);
+        head.appendChild(deleteButton);
+
+        const english = document.createElement("p");
+        english.className = "modal__example-text modal__example-text--small";
+        english.textContent = ex.english || "";
+
+        item.appendChild(head);
+        item.appendChild(english);
+        list.appendChild(item);
+    });
+
+    exampleButton.classList.add("is-hidden");
+    addButton.classList.remove("is-hidden");
 }
 
-async function showEntryExample(forceRefresh = false) {
-    const exampleDanish = document.getElementById("entryModalExampleDanish");
-    const exampleEnglish = document.getElementById("entryModalExampleEnglish");
+async function showEntryExample(forceRefresh = false, append = false) {
     const exampleButton = document.getElementById("entryModalExampleButton");
-    const exampleRefreshButton = document.getElementById("entryModalExampleRefreshButton");
-    if (!exampleDanish || !exampleEnglish || !exampleButton || !entryModalState.entryId) {
+    const addButton = document.getElementById("entryModalExampleAddButton");
+    const list = document.getElementById("entryModalExamples");
+    if (!exampleButton || !addButton || !list || !entryModalState.entryId) {
         return;
     }
 
@@ -1295,12 +1348,18 @@ async function showEntryExample(forceRefresh = false) {
         exampleButton.setAttribute("disabled", "true");
         exampleButton.textContent = "Generating…";
     }
-    exampleRefreshButton?.setAttribute("disabled", "true");
-    exampleDanish.textContent = "Working on a Danish example…";
-    exampleEnglish.textContent = "";
+    addButton?.setAttribute("disabled", "true");
+    list.innerHTML = '<p class="modal__example-empty">Working on a Danish example…</p>';
 
     try {
-        const suffix = forceRefresh ? "?force=1" : "";
+        const params = [];
+        if (forceRefresh) {
+            params.push("force=1");
+        }
+        if (append) {
+            params.push("append=1");
+        }
+        const suffix = params.length ? `?${params.join("&")}` : "";
         const response = await fetch(`/entries/${entryModalState.entryId}/example${suffix}`, {
             method: "POST",
             headers: {
@@ -1310,47 +1369,102 @@ async function showEntryExample(forceRefresh = false) {
 
         if (response.status === 401) {
             updateAuthState(false, null);
-            exampleDanish.textContent = "Please log in again to view examples.";
+            list.innerHTML = '<p class="modal__example-empty">Please log in again to view examples.</p>';
             return;
         }
 
         const data = await response.json();
         if (!response.ok) {
-            exampleDanish.textContent = data.error || "Could not load an example.";
+            list.innerHTML = `<p class="modal__example-empty">${escapeHtml(
+                data.error || "Could not load an example."
+            )}</p>`;
             return;
         }
 
-        const example = data.example || {};
-        entryModalState.example = {
-            danish: toDisplayText(example.danish),
-            english: toDisplayText(example.english),
-        };
-        renderEntryExample(entryModalState.example);
+        let examples = (data.examples || []).map((ex) => ({
+            danish: toDisplayText(ex.danish),
+            english: toDisplayText(ex.english),
+        }));
+        if ((!examples || examples.length === 0) && data.example) {
+            examples = [
+                {
+                    danish: toDisplayText(data.example.danish),
+                    english: toDisplayText(data.example.english),
+                },
+            ];
+        }
+        entryModalState.examples = examples;
+        entryModalState.example = examples[0] || null;
+        renderEntryExamples(entryModalState.examples);
         fetchEntries();
     } catch (error) {
         console.error("Error fetching example:", error);
-        exampleDanish.textContent = "Unable to load an example right now.";
+        list.innerHTML = '<p class="modal__example-empty">Unable to load an example right now.</p>';
     } finally {
-        renderEntryExample(entryModalState.example);
+        renderEntryExamples(entryModalState.examples);
         exampleButton.removeAttribute("disabled");
         exampleButton.textContent = "Generate example";
-        exampleRefreshButton?.removeAttribute("disabled");
+        addButton?.removeAttribute("disabled");
     }
 }
 
-async function playPronunciation(entryId, kind = "word") {
+async function deleteEntryExample(index) {
+    if (entryModalState.entryId == null) {
+        return;
+    }
+    const list = document.getElementById("entryModalExamples");
+    if (list) {
+        list.innerHTML = '<p class="modal__example-empty">Removing…</p>';
+    }
+    try {
+        const response = await fetch(`/entries/${entryModalState.entryId}/examples/${index}`, {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+        });
+
+        if (response.status === 401) {
+            updateAuthState(false, null);
+            return;
+        }
+
+        const data = await response.json();
+        if (!response.ok || data.status !== "success") {
+            throw new Error(data.error || "Failed to delete example.");
+        }
+
+        const updated = (data.examples || []).map((ex) => ({
+            danish: toDisplayText(ex.danish),
+            english: toDisplayText(ex.english),
+        }));
+        entryModalState.examples = updated;
+        renderEntryExamples(updated);
+        fetchEntries();
+    } catch (error) {
+        console.error("Error deleting example:", error);
+        if (list) {
+            list.innerHTML = '<p class="modal__example-empty">Could not delete example.</p>';
+        }
+    }
+}
+
+async function playPronunciation(entryId, kind = "word", exampleIndex = 0) {
     const button =
         kind === "example"
-            ? document.getElementById("entryModalExamplePronounceButton")
+            ? null
             : document.getElementById("entryModalPronounceButton");
 
-    if (!entryId || !button) {
+    if (!entryId) {
         return;
     }
 
-    button.setAttribute("disabled", "true");
+    button?.setAttribute("disabled", "true");
     try {
-        const suffix = kind === "example" ? "?kind=example" : "";
+        const params = [];
+        if (kind === "example") {
+            params.push("kind=example");
+            params.push(`index=${exampleIndex}`);
+        }
+        const suffix = params.length ? `?${params.join("&")}` : "";
         const response = await fetch(`/entries/${entryId}/pronunciation${suffix}`);
 
         if (response.status === 401) {
@@ -1370,7 +1484,7 @@ async function playPronunciation(entryId, kind = "word") {
     } catch (error) {
         console.error("Error playing pronunciation:", error);
     } finally {
-        button.removeAttribute("disabled");
+        button?.removeAttribute("disabled");
     }
 }
 
@@ -1480,7 +1594,7 @@ async function logoutUser() {
     }
 }
 
-function openAddWordModal({ english = "", danish = "" } = {}) {
+function openAddWordModal({ english = "", danish = "", isExternalInput = true } = {}) {
     const modal = document.getElementById("addWordModal");
     const englishField = document.getElementById("addWordEnglish");
     const danishField = document.getElementById("addWordDanish");
@@ -1492,6 +1606,7 @@ function openAddWordModal({ english = "", danish = "" } = {}) {
 
     addWordState.english = toDisplayText(english);
     addWordState.danish = toDisplayText(danish);
+    addWordState.isExternalInput = Boolean(isExternalInput);
     if (addWordState.english && addWordState.danish) {
         addWordState.danish = "";
     }
@@ -1512,6 +1627,7 @@ function closeAddWordModal() {
     }
     showStatus(status, "");
     modal.classList.add("modal--hidden");
+    addWordState.isExternalInput = true;
 }
 
 async function translateAddWord() {
@@ -1599,6 +1715,7 @@ async function saveWordFromModal() {
             body: JSON.stringify({
                 english: englishText,
                 danish: danishText,
+                is_external_input: addWordState.isExternalInput,
             }),
         });
 
@@ -1673,7 +1790,12 @@ function initApp() {
     document.getElementById("loginButton")?.addEventListener("click", loginUser);
     document.getElementById("registerButton")?.addEventListener("click", registerUser);
     document.getElementById("logoutButton")?.addEventListener("click", logoutUser);
-    document.getElementById("entryModalExampleButton")?.addEventListener("click", showEntryExample);
+    document.getElementById("entryModalExampleButton")?.addEventListener("click", () =>
+        showEntryExample(false, false)
+    );
+    document.getElementById("entryModalExampleAddButton")?.addEventListener("click", () =>
+        showEntryExample(true, true)
+    );
     document.getElementById("entryModalPronounceButton")?.addEventListener("click", () => {
         const entryId = Number(
             document.getElementById("entryModalPronounceButton")?.dataset.entryId || 0
@@ -1681,19 +1803,6 @@ function initApp() {
         if (entryId) {
             playPronunciation(entryId);
         }
-    });
-    document
-        .getElementById("entryModalExamplePronounceButton")
-        ?.addEventListener("click", () => {
-            const entryId = Number(
-                document.getElementById("entryModalExamplePronounceButton")?.dataset.entryId || 0
-            );
-            if (entryId) {
-                playPronunciation(entryId, "example");
-            }
-        });
-    document.getElementById("entryModalExampleRefreshButton")?.addEventListener("click", () => {
-        showEntryExample(true);
     });
     document.getElementById("practiseClozeCheck")?.addEventListener("click", () => {
         checkClozeAnswer();

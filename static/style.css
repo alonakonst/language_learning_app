@@ -332,7 +332,7 @@ body {
 .modal__example {
     display: flex;
     flex-direction: column;
-    gap: 0.45rem;
+    gap: 0.65rem;
 }
 
 .modal__example-text {
@@ -396,6 +396,66 @@ body {
 
 .modal--hidden {
     display: none;
+}
+
+.modal__example-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.modal__example-actions--footer {
+    justify-content: flex-end;
+}
+
+.modal__examples {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.modal__example-item {
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 0.65rem 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+.modal__example-head {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.modal__example-text--small {
+    margin: 0;
+    color: #111827;
+}
+
+.modal__example-empty {
+    margin: 0;
+    color: #6b7280;
+}
+
+.modal__example-actions-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.modal__trash {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: #991b1b;
+    font-size: 1.05rem;
+}
+
+.btn.btn--ghost {
+    background: transparent;
+    border: 1px solid rgba(0, 0, 0, 0.12);
 }
 
 .add-modal__form {

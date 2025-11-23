@@ -157,17 +157,15 @@
                 <p class="modal__line" id="entryModalEnglish"></p>
             </div>
             <div class="modal__example">
-                <button class="btn btn--secondary" id="entryModalExampleButton">Generate example</button>
-                <div class="modal__example-line">
-                    <button class="icon-button modal__audio is-hidden" id="entryModalExamplePronounceButton" aria-label="Play example pronunciation">
-                        🔊
-                    </button>
-                    <button class="icon-button modal__refresh is-hidden" id="entryModalExampleRefreshButton" aria-label="Regenerate example">
-                        ↻
-                    </button>
-                    <p class="modal__example-text modal__example-text--danish" id="entryModalExampleDanish"></p>
+                <div class="modal__example-actions">
+                    <button class="btn btn--secondary" id="entryModalExampleButton">Generate example</button>
                 </div>
-                <p class="modal__example-text" id="entryModalExampleEnglish"></p>
+                <div class="modal__examples" id="entryModalExamples">
+                    <p class="modal__example-empty">No examples yet.</p>
+                </div>
+                <div class="modal__example-actions modal__example-actions--footer">
+                    <button class="btn btn--ghost is-hidden" id="entryModalExampleAddButton">Add another</button>
+                </div>
             </div>
             <div class="modal__footer">
                 <button class="modal__close" id="entryModalClose">Close</button>

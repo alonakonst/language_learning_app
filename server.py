@@ -36,6 +36,18 @@ def init_database():
         existing_columns = {column.name for column in database.get_columns(table_name)}
         if "user_id" not in existing_columns:
             database.drop_tables([DictionaryEntry], safe=True)
+        if "is_external_input" not in existing_columns:
+            try:
+                if database.__class__.__name__ == "SqliteDatabase":
+                    database.execute_sql(
+                        f'ALTER TABLE "{table_name}" ADD COLUMN "is_external_input" INTEGER NOT NULL DEFAULT 1'
+                    )
+                else:
+                    database.execute_sql(
+                        f'ALTER TABLE "{table_name}" ADD COLUMN "is_external_input" BOOLEAN NOT NULL DEFAULT TRUE'
+                    )
+            except Exception:
+                app.logger.exception("Unable to add is_external_input column automatically.")
 
     database.create_tables([DictionaryEntry], safe=True)
 
@@ -49,25 +61,65 @@ init_database()
 
 
 def _load_example_from_notes(entry: DictionaryEntry):
+    examples = _load_examples_from_notes(entry.notes)
+    return examples[0] if examples else None
+
+
+def _load_examples_from_notes(notes: str):
+    def _dedup(examples):
+        seen = set()
+        unique = []
+        for item in examples:
+            danish_key = (item.get("danish") or "").strip().lower()
+            english_key = (item.get("english") or "").strip().lower()
+            key = (danish_key, english_key)
+            if key in seen:
+                continue
+            seen.add(key)
+            unique.append(item)
+        return unique
+
     try:
-        data = json.loads(entry.notes or "")
+        data = json.loads(notes or "")
         if isinstance(data, dict):
+            if isinstance(data.get("examples"), list):
+                examples = []
+                for item in data["examples"]:
+                    if not isinstance(item, dict):
+                        continue
+                    danish = (item.get("danish") or item.get("example_da") or "").strip()
+                    english = (item.get("english") or item.get("example_en") or "").strip()
+                    if danish or english:
+                        examples.append({"danish": danish, "english": english})
+                if examples:
+                    return _dedup(examples)
             danish = (data.get("example_da") or data.get("danish") or "").strip()
             english = (data.get("example_en") or data.get("english") or "").strip()
             if danish or english:
-                return {"danish": danish, "english": english}
+                return _dedup([{"danish": danish, "english": english}])
     except Exception:
-        return None
-    return None
+        return []
+    return []
 
 
-def _save_example_to_notes(entry: DictionaryEntry, danish: str, english: str):
-    entry.notes = json.dumps(
-        {
-            "example_da": danish or "",
-            "example_en": english or "",
-        }
-    )
+def _save_example_to_notes(entry: DictionaryEntry, danish: str, english: str, append: bool = False):
+    current = [] if not append else _load_examples_from_notes(entry.notes)
+    example = {"danish": danish or "", "english": english or ""}
+    current.append(example)
+
+    # Deduplicate to keep examples distinct
+    seen = set()
+    unique_examples = []
+    for item in current:
+        danish_key = (item.get("danish") or "").strip().lower()
+        english_key = (item.get("english") or "").strip().lower()
+        key = (danish_key, english_key)
+        if key in seen:
+            continue
+        seen.add(key)
+        unique_examples.append(item)
+
+    entry.notes = json.dumps({"examples": unique_examples})
     entry.save()
 
 @app.before_request
@@ -102,12 +154,18 @@ def entry_pronunciation(entry_id: int):
 
     if kind == "example":
         danish_text = ""
-        try:
-            cached = json.loads(entry.notes or "")
-            if isinstance(cached, dict):
-                danish_text = (cached.get("example_da") or cached.get("danish") or "").strip()
-        except Exception:
-            danish_text = ""
+        index_raw = request.args.get("index")
+        examples = _load_examples_from_notes(entry.notes)
+        if examples:
+            if index_raw is not None:
+                try:
+                    idx = int(index_raw)
+                    if 0 <= idx < len(examples):
+                        danish_text = (examples[idx].get("danish") or "").strip()
+                except ValueError:
+                    danish_text = (examples[0].get("danish") or "").strip()
+            else:
+                danish_text = (examples[0].get("danish") or "").strip()
         if not danish_text:
             return jsonify({"error": "No Danish example available for this entry."}), 404
     else:
@@ -223,7 +281,13 @@ def add_entry():
     data = request.get_json() or {}
     english_text = (data.get("english") or data.get("text") or "").strip()
     danish_text = (data.get("danish") or data.get("translation") or "").strip()
-    notes = ''
+    notes = ""
+    is_external_input = not bool(data.get("internal")) and not bool(data.get("is_internal"))
+    if "is_external_input" in data:
+        try:
+            is_external_input = bool(data.get("is_external_input"))
+        except Exception:
+            pass
 
     if not english_text or not danish_text:
         return jsonify({"error": "English and Danish texts are required."}), 400
@@ -234,33 +298,24 @@ def add_entry():
         text=english_text,
         translation=danish_text,
         notes=notes,
+        is_external_input=is_external_input,
     )
 
-    return jsonify({'status': 'success', 'message': 'Entry saved successfully'})
+    return jsonify({"status": "success", "message": "Entry saved successfully"})
 
 
 @app.route("/entries", methods=["GET"])
 @login_required
 def list_entries():
-    def parse_notes(entry: DictionaryEntry):
-        try:
-            data = json.loads(entry.notes or "")
-            if isinstance(data, dict):
-                danish = (data.get("example_da") or data.get("danish") or "").strip()
-                english = (data.get("example_en") or data.get("english") or "").strip()
-                if danish or english:
-                    return {"danish": danish, "english": english}
-        except Exception:
-            pass
-        return None
-
     entries = [
         {
             "id": entry.id,
             "text": entry.text,
             "translation": entry.translation,
             "notes": entry.notes,
-            "example": parse_notes(entry),
+            "is_external_input": bool(getattr(entry, "is_external_input", True)),
+            "example": (_load_examples_from_notes(entry.notes) or [None])[0],
+            "examples": _load_examples_from_notes(entry.notes),
         }
         for entry in (
             DictionaryEntry.select()
@@ -286,11 +341,12 @@ def entry_example(entry_id: int):
         return jsonify({"error": "The entry is missing a word or translation."}), 400
 
     force_refresh = (request.args.get("force") or "").lower() in ("1", "true", "yes", "refresh")
+    append = (request.args.get("append") or "").lower() in ("1", "true", "yes", "append")
 
-    if not force_refresh:
+    if not force_refresh and not append:
         cached = _load_example_from_notes(entry)
         if cached:
-            return jsonify({"example": cached})
+            return jsonify({"example": cached, "examples": _load_examples_from_notes(entry.notes)})
 
     try:
         example = llm_actions.generate_usage_example_pair(target_text, target_translation)
@@ -303,9 +359,16 @@ def entry_example(entry_id: int):
     if not example or not (example.get("danish") or example.get("english")):
         return jsonify({"error": "No example was generated."}), 502
 
-    _save_example_to_notes(entry, example.get("danish") or "", example.get("english") or "")
+    _save_example_to_notes(
+        entry,
+        example.get("danish") or "",
+        example.get("english") or "",
+        append=append,
+    )
 
-    return jsonify({"example": example})
+    examples = _load_examples_from_notes(entry.notes)
+
+    return jsonify({"example": example, "examples": examples})
 
 
 @app.route("/entries/<int:entry_id>", methods=["DELETE"])
@@ -319,6 +382,26 @@ def delete_entry(entry_id: int):
 
     entry.delete_instance()
     return jsonify({"status": "success"})
+
+
+@app.route("/entries/<int:entry_id>/examples/<int:example_index>", methods=["DELETE"])
+@login_required
+def delete_entry_example(entry_id: int, example_index: int):
+    entry = DictionaryEntry.get_or_none(
+        (DictionaryEntry.id == entry_id) & (DictionaryEntry.user == g.user)
+    )
+    if entry is None:
+        return jsonify({"error": "Entry not found."}), 404
+
+    examples = _load_examples_from_notes(entry.notes)
+    if example_index < 0 or example_index >= len(examples):
+        return jsonify({"error": "Example not found."}), 404
+
+    del examples[example_index]
+    entry.notes = json.dumps({"examples": examples})
+    entry.save()
+
+    return jsonify({"status": "success", "examples": examples})
 
 
 @app.route("/practise/ai", methods=["POST"])
@@ -425,7 +508,7 @@ def practise_cloze():
 
     try:
         example = llm_actions.generate_usage_example_pair(target_text, target_translation)
-        _save_example_to_notes(entry, example.get("danish") or "", example.get("english") or "")
+        _save_example_to_notes(entry, example.get("danish") or "", example.get("english") or "", append=True)
     except Exception:
         app.logger.exception("Failed to generate example for cloze practise %s", entry_id)
         example = _load_example_from_notes(entry)

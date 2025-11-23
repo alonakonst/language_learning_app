@@ -1,7 +1,7 @@
 from .base import Base
 from .user import User
 
-from peewee import ForeignKeyField, TextField
+from peewee import BooleanField, ForeignKeyField, TextField
 
 
 class DictionaryEntry(Base):
@@ -9,6 +9,7 @@ class DictionaryEntry(Base):
     text = TextField(null=False)
     translation = TextField(null=True)
     notes = TextField(null=True)
+    is_external_input = BooleanField(default=True, null=False)
 
     def __str__(self) -> str:
         return (

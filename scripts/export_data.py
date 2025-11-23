@@ -43,6 +43,7 @@ def export() -> dict:
                 "text": entry.text,
                 "translation": entry.translation,
                 "notes": entry.notes,
+                "is_external_input": bool(getattr(entry, "is_external_input", True)),
             }
             for entry in DictionaryEntry.select().order_by(DictionaryEntry.id)
         ],
@@ -80,4 +81,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
