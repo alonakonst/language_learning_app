@@ -148,6 +148,27 @@
         </div>
     </div>
 
+    <div class="modal modal--hidden" id="addWordModal" role="dialog" aria-modal="true">
+        <div class="modal__dialog modal__dialog--form">
+            <h3 class="modal__title">Add to dictionary</h3>
+            <div class="add-modal__form">
+                <label class="field">
+                    <span class="field__label">English</span>
+                    <input type="text" id="addWordEnglish" placeholder="Write a phrase in English">
+                </label>
+                <label class="field">
+                    <span class="field__label">Danish</span>
+                    <input type="text" id="addWordDanish" placeholder="Add your Danish translation">
+                </label>
+                <p class="form-status" id="addWordStatus"></p>
+            </div>
+            <div class="modal__footer add-modal__actions">
+                <button class="modal__close" id="addWordCancel">Cancel</button>
+                <button class="btn btn--primary" id="addWordSave">Save</button>
+            </div>
+        </div>
+    </div>
+
     <nav class="tab-bar tab-bar--hidden" id="tabBar">
         <button class="tab tab--active" data-view="dictionary">
             <span>Dictionary</span>

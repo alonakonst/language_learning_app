@@ -14,6 +14,11 @@ const practiseState = {
     awaitingNext: false,
 };
 
+const addWordState = {
+    english: "",
+    danish: "",
+};
+
 const entryModalState = {
     entryId: null,
     entryText: "",
@@ -541,9 +546,13 @@ function renderAiPractiseQuestion() {
     options.classList.toggle("practise__options--disabled", practiseState.awaitingNext);
 
     question.options.forEach((option) => {
+        const wrapper = document.createElement("div");
+        wrapper.className = "practise__card-wrapper";
+
         const button = document.createElement("button");
         button.type = "button";
         button.className = "practise__card";
+        button.dataset.optionId = option.id;
 
         const meta = document.createElement("span");
         meta.className = "practise__card-meta";
@@ -559,10 +568,30 @@ function renderAiPractiseQuestion() {
         button.addEventListener("click", () => handleAiPractiseSelection(option.id, button));
         button.appendChild(meta);
         button.appendChild(label);
-        options.appendChild(button);
+        wrapper.appendChild(button);
+
+        const englishValue = toDisplayText(option.label);
+        const danishValue = toDisplayText(option.translation || option.metadata?.translation || "");
+
+        const addButton = document.createElement("button");
+        addButton.type = "button";
+        addButton.className = "practise__card-add is-hidden";
+        addButton.textContent = "+";
+        addButton.title = "Add to dictionary";
+        addButton.addEventListener("click", (event) => {
+            event.stopPropagation();
+            openAddWordModal({
+                english: englishValue,
+                danish: danishValue,
+            });
+        });
+
+        wrapper.appendChild(addButton);
+        options.appendChild(wrapper);
     });
 
     renderExerciseVisibility();
+    revealDistractorAddButtons();
 }
 
 function handleAiPractiseSelection(optionId, button) {
@@ -584,16 +613,41 @@ function handleAiPractiseSelection(optionId, button) {
     if (chosen.isCorrect) {
         practiseState.aiAllowSelection = false;
         feedback.textContent = "Nice! That's your word. Tap next exercise.";
-        Array.from(options.children).forEach((child) => child.setAttribute("disabled", "true"));
+        Array.from(options.querySelectorAll(".practise__card")).forEach((card) =>
+            card.setAttribute("disabled", "true")
+        );
         button.classList.add("practise__card--correct");
         practiseState.awaitingNext = true;
         options.classList.add("practise__options--disabled");
         renderNextExerciseButton();
+        revealDistractorAddButtons();
     } else {
         button.classList.add("practise__card--incorrect");
         feedback.textContent = "That's one of the new words. Try again.";
         setTimeout(() => button.classList.remove("practise__card--incorrect"), 900);
     }
+}
+
+function revealDistractorAddButtons() {
+    const options = document.getElementById("practiseAiOptions");
+    if (!options || !practiseState.aiQuestion) {
+        return;
+    }
+
+    const shouldShow = practiseState.awaitingNext;
+
+    options.querySelectorAll(".practise__card-wrapper").forEach((wrapper) => {
+        const card = wrapper.querySelector(".practise__card");
+        const addButton = wrapper.querySelector(".practise__card-add");
+        if (!card || !addButton) {
+            return;
+        }
+        const option = practiseState.aiQuestion.options.find(
+            (opt) => opt.id === card.dataset.optionId
+        );
+        const showButton = Boolean(option) && shouldShow && !option.isCorrect;
+        addButton.classList.toggle("is-hidden", !showButton);
+    });
 }
 
 function showStatus(element, message, isError = true) {
@@ -1154,6 +1208,88 @@ async function logoutUser() {
     }
 }
 
+function openAddWordModal({ english = "", danish = "" } = {}) {
+    const modal = document.getElementById("addWordModal");
+    const englishField = document.getElementById("addWordEnglish");
+    const danishField = document.getElementById("addWordDanish");
+    const status = document.getElementById("addWordStatus");
+
+    if (!modal || !englishField || !danishField || !status) {
+        return;
+    }
+
+    addWordState.english = toDisplayText(english);
+    addWordState.danish = toDisplayText(danish);
+    englishField.value = addWordState.english;
+    danishField.value = addWordState.danish;
+    showStatus(status, "");
+
+    modal.classList.remove("modal--hidden");
+    englishField.focus();
+}
+
+function closeAddWordModal() {
+    const modal = document.getElementById("addWordModal");
+    const status = document.getElementById("addWordStatus");
+    if (!modal || !status) {
+        return;
+    }
+    showStatus(status, "");
+    modal.classList.add("modal--hidden");
+}
+
+async function saveWordFromModal() {
+    const englishField = document.getElementById("addWordEnglish");
+    const danishField = document.getElementById("addWordDanish");
+    const status = document.getElementById("addWordStatus");
+
+    if (!englishField || !danishField || !status) {
+        return;
+    }
+
+    const englishText = englishField.value.trim();
+    const danishText = danishField.value.trim();
+
+    if (!englishText || !danishText) {
+        showStatus(status, "Fill in both English and Danish first.");
+        return;
+    }
+
+    showStatus(status, "Saving…", false);
+
+    try {
+        const response = await fetch("/save", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                english: englishText,
+                danish: danishText,
+            }),
+        });
+
+        if (response.status === 401) {
+            updateAuthState(false, null);
+            showStatus(status, "Please log in again to save this word.");
+            return;
+        }
+
+        const data = await response.json();
+        if (!response.ok || data.status !== "success") {
+            showStatus(status, data.error || "Failed to save entry.");
+            return;
+        }
+
+        showStatus(status, "Saved to your dictionary.", false);
+        fetchEntries();
+        setTimeout(() => closeAddWordModal(), 500);
+    } catch (error) {
+        console.error("Error saving practise word:", error);
+        showStatus(status, "Unable to save right now.");
+    }
+}
+
 async function deleteEntry(entryId) {
     if (!confirm("Delete this entry?")) {
         return;
@@ -1235,6 +1371,13 @@ function initApp() {
     document.getElementById("entryModal")?.addEventListener("click", (event) => {
         if (event.target.id === "entryModal") {
             hideEntryModal();
+        }
+    });
+    document.getElementById("addWordSave")?.addEventListener("click", saveWordFromModal);
+    document.getElementById("addWordCancel")?.addEventListener("click", closeAddWordModal);
+    document.getElementById("addWordModal")?.addEventListener("click", (event) => {
+        if (event.target.id === "addWordModal") {
+            closeAddWordModal();
         }
     });
     document.getElementById("translationDirection")?.addEventListener("change", () => {
