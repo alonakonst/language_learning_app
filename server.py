@@ -1,6 +1,7 @@
 from functools import wraps
 
 import os
+import random
 import json
 import re
 
@@ -66,19 +67,6 @@ def _load_example_from_notes(entry: DictionaryEntry):
 
 
 def _load_examples_from_notes(notes: str):
-    def _dedup(examples):
-        seen = set()
-        unique = []
-        for item in examples:
-            danish_key = (item.get("danish") or "").strip().lower()
-            english_key = (item.get("english") or "").strip().lower()
-            key = (danish_key, english_key)
-            if key in seen:
-                continue
-            seen.add(key)
-            unique.append(item)
-        return unique
-
     try:
         data = json.loads(notes or "")
         if isinstance(data, dict):
@@ -92,35 +80,90 @@ def _load_examples_from_notes(notes: str):
                     if danish or english:
                         examples.append({"danish": danish, "english": english})
                 if examples:
-                    return _dedup(examples)
+                    return _dedup_examples(examples)
             danish = (data.get("example_da") or data.get("danish") or "").strip()
             english = (data.get("example_en") or data.get("english") or "").strip()
             if danish or english:
-                return _dedup([{"danish": danish, "english": english}])
+                return _dedup_examples([{"danish": danish, "english": english}])
     except Exception:
         return []
     return []
 
 
-def _save_example_to_notes(entry: DictionaryEntry, danish: str, english: str, append: bool = False):
+def _save_example_to_notes(entry: DictionaryEntry, danish: str, english: str, append: bool = False, max_examples: int | None = None):
     current = [] if not append else _load_examples_from_notes(entry.notes)
     example = {"danish": danish or "", "english": english or ""}
     current.append(example)
 
     # Deduplicate to keep examples distinct
+    unique_examples = _dedup_examples(current)
+
+    if isinstance(max_examples, int) and max_examples > 0:
+        unique_examples = unique_examples[-max_examples:]
+
+    entry.notes = json.dumps({"examples": unique_examples})
+    entry.save()
+
+
+def _dedup_examples(examples):
     seen = set()
-    unique_examples = []
-    for item in current:
+    unique = []
+    for item in examples:
         danish_key = (item.get("danish") or "").strip().lower()
         english_key = (item.get("english") or "").strip().lower()
         key = (danish_key, english_key)
         if key in seen:
             continue
         seen.add(key)
-        unique_examples.append(item)
+        unique.append(item)
+    return unique
 
-    entry.notes = json.dumps({"examples": unique_examples})
-    entry.save()
+
+def _normalize_example_text(text: str) -> str:
+    return re.sub(r"\s+", " ", (text or "").strip().lower())
+
+
+def _is_duplicate_example(existing_examples, candidate) -> bool:
+    if not candidate:
+        return False
+    cand_da = _normalize_example_text(candidate.get("danish") or "")
+    cand_en = _normalize_example_text(candidate.get("english") or "")
+    for ex in existing_examples or []:
+        if (
+            cand_da
+            and cand_da == _normalize_example_text(ex.get("danish") or "")
+        ) or (
+            cand_en
+            and cand_en == _normalize_example_text(ex.get("english") or "")
+        ):
+            return True
+    return False
+
+
+def _generate_unique_example(entry: DictionaryEntry, max_attempts: int = 3, require_unique: bool = True):
+    existing = _load_examples_from_notes(entry.notes)
+    avoid = [ex.get("danish") or "" for ex in existing if ex.get("danish")]
+
+    for attempt in range(max_attempts):
+        example = None
+        try:
+            example = llm_actions.generate_usage_example_pair(
+                entry.text or "",
+                entry.translation or "",
+                avoid_examples=avoid,
+            )
+        except Exception:
+            example = None
+
+        if not example:
+            continue
+
+        if not _is_duplicate_example(existing, example):
+            return example
+
+        avoid.append(example.get("danish") or "")
+
+    return None if require_unique else (example if example else None)
 
 @app.before_request
 def load_logged_in_user():
@@ -349,7 +392,7 @@ def entry_example(entry_id: int):
             return jsonify({"example": cached, "examples": _load_examples_from_notes(entry.notes)})
 
     try:
-        example = llm_actions.generate_usage_example_pair(target_text, target_translation)
+        example = _generate_unique_example(entry, require_unique=False)
     except ValueError as exc:
         return jsonify({"error": str(exc) or "Unable to generate an example."}), 400
     except Exception:
@@ -506,14 +549,32 @@ def practise_cloze():
     if not target_text or not target_translation:
         return jsonify({"error": "The selected entry is missing a translation."}), 400
 
+    examples = _load_examples_from_notes(entry.notes)
+
+    # Always try to generate a fresh, non-repeating example
+    example = None
     try:
-        example = llm_actions.generate_usage_example_pair(target_text, target_translation)
-        _save_example_to_notes(entry, example.get("danish") or "", example.get("english") or "", append=True)
+        example = _generate_unique_example(entry, require_unique=True)
     except Exception:
         app.logger.exception("Failed to generate example for cloze practise %s", entry_id)
-        example = _load_example_from_notes(entry)
-        if not example:
-            return jsonify({"error": "Unable to create a sentence right now."}), 502
+        example = None
+
+    # If generation failed, fall back to any cached example just to keep flow alive
+    if not example and examples:
+        example = random.choice(examples)
+
+    if example and not _is_duplicate_example(examples, example):
+        examples.append(example)
+        _save_example_to_notes(
+            entry,
+            example.get("danish") or "",
+            example.get("english") or "",
+            append=True,
+            max_examples=5,
+        )
+
+    if not example:
+        return jsonify({"error": "Unable to create a sentence right now."}), 502
 
     danish_example = (example.get("danish") or "").strip()
     cloze_prompt = _mask_example_sentence(danish_example, target_translation)

@@ -147,7 +147,7 @@ def generate_ai_practise_cards(target_text: str, target_translation: str):
     }
 
 
-def generate_usage_example(target_text: str, target_translation: str) -> str:
+def generate_usage_example(target_text: str, target_translation: str, extra_instruction: str = "") -> str:
     """
     Return a medium-length Danish sentence or brief two-line dialogue that uses the
     target Danish word or phrase naturally with the same meaning as the provided English.
@@ -166,6 +166,8 @@ def generate_usage_example(target_text: str, target_translation: str) -> str:
         "You may use a short two-line dialogue if it feels natural. "
         "Do not prepend explanations or quotes. Output Danish only."
     )
+    if extra_instruction:
+        system_prompt += " " + extra_instruction.strip()
 
     user_prompt = (
         "TARGET (EN): {target}\n"
@@ -201,8 +203,18 @@ def translate_example_to_english(example_danish: str) -> str:
     ).strip()
 
 
-def generate_usage_example_pair(target_text: str, target_translation: str) -> dict:
+def generate_usage_example_pair(target_text: str, target_translation: str, avoid_examples=None) -> dict:
     """Generate a Danish example and its English translation."""
-    example_da = generate_usage_example(target_text, target_translation)
+    avoid_list = [ex for ex in avoid_examples or [] if ex]
+    extra_instruction = ""
+    if avoid_list:
+        avoid_block = "; ".join(avoid_list[:10])
+        extra_instruction = f"Do NOT repeat or paraphrase any of these prior Danish examples: {avoid_block}."
+
+    example_da = generate_usage_example(
+        target_text,
+        target_translation,
+        extra_instruction=extra_instruction,
+    )
     example_en = translate_example_to_english(example_da)
     return {"danish": example_da, "english": example_en}
