@@ -175,6 +175,11 @@ function setPractiseEntries(rawEntries) {
 
     practiseState.entries = usableEntries;
 
+    if (practiseState.mode === "cloze" && practiseState.clozeQuestion) {
+        // Keep current sentence and suggestions visible after saving new words.
+        return;
+    }
+
     updateAiPractiseAvailability();
     prepareClozeQuestion();
 }
@@ -644,6 +649,11 @@ async function prepareClozeQuestion() {
         practiseState.mode !== "cloze" ||
         !practiseState.modeSelected
     ) {
+        renderClozeQuestion();
+        return;
+    }
+
+    if (practiseState.clozeQuestion) {
         renderClozeQuestion();
         return;
     }
