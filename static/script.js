@@ -13,6 +13,9 @@ const practiseState = {
     mode: "flash_en", // flash_en, flash_da, cloze
     modeSelected: false,
     awaitingNext: false,
+    entryStats: {},
+    activeEntryId: null,
+    activeEntryMarkedIncorrect: false,
 };
 
 const progressState = {
@@ -116,6 +119,70 @@ function normalizeEntries(entries = []) {
     return entries
         .map((entry) => normalizeEntryForDisplay(entry))
         .filter((entry) => entry !== null);
+}
+
+function getEntryStats(entryId) {
+    if (!entryId) {
+        return { attempts: 0, correct: 0, incorrect: 0, lastPractised: 0, lastResult: null };
+    }
+    const key = String(entryId);
+    if (!practiseState.entryStats[key]) {
+        practiseState.entryStats[key] = {
+            attempts: 0,
+            correct: 0,
+            incorrect: 0,
+            lastPractised: 0,
+            lastResult: null,
+        };
+    }
+    return practiseState.entryStats[key];
+}
+
+function setActiveEntry(entryId) {
+    practiseState.activeEntryId = entryId || null;
+    practiseState.activeEntryMarkedIncorrect = false;
+}
+
+function markEntryResult(entryId, isCorrect) {
+    if (!entryId) {
+        return;
+    }
+    const stats = getEntryStats(entryId);
+    stats.attempts += 1;
+    stats.lastResult = isCorrect;
+    stats.lastPractised = Date.now();
+    if (isCorrect) {
+        stats.correct += 1;
+    } else {
+        stats.incorrect += 1;
+    }
+    practiseState.entryStats[String(entryId)] = stats;
+}
+
+function markEntryIncorrectOnce(entryId) {
+    if (!entryId || practiseState.activeEntryMarkedIncorrect) {
+        return;
+    }
+    markEntryResult(entryId, false);
+    practiseState.activeEntryMarkedIncorrect = true;
+}
+
+function selectPractiseTarget() {
+    if (!practiseState.entries || practiseState.entries.length === 0) {
+        return null;
+    }
+
+    const scored = practiseState.entries.map((entry) => {
+        const stats = getEntryStats(entry.id);
+        const bucket = stats.attempts === 0 ? 0 : stats.lastResult === false ? 1 : 2;
+        return { entry, bucket, last: stats.lastPractised || 0 };
+    });
+
+    const bestBucket = Math.min(...scored.map((item) => item.bucket));
+    const candidates = scored.filter((item) => item.bucket === bestBucket);
+    candidates.sort((a, b) => a.last - b.last);
+
+    return candidates[0]?.entry || null;
 }
 
 function detectDirectionFromText(text, fallback = "en-da") {
@@ -318,6 +385,8 @@ function resetPractiseState(message = "Sign in to start practising.") {
     practiseState.clozeLoading = false;
     practiseState.mode = "flash_en";
     practiseState.modeSelected = false;
+    practiseState.activeEntryId = null;
+    practiseState.activeEntryMarkedIncorrect = false;
 
     const aiEmptyMessage = document.getElementById("practiseAiEmptyMessage");
     const aiBody = document.getElementById("practiseAiBody");
@@ -369,6 +438,7 @@ function setPractiseEntries(rawEntries) {
     );
 
     practiseState.entries = usableEntries;
+    usableEntries.forEach((entry) => getEntryStats(entry.id));
 
     if (practiseState.mode === "cloze" && practiseState.clozeQuestion) {
         // Keep current sentence and suggestions visible after saving new words.
@@ -517,6 +587,9 @@ function checkClozeAnswer() {
         renderClozeWordBar();
         renderNextExerciseButton();
         logExerciseCompletion("cloze");
+        markEntryResult(practiseState.clozeQuestion.entryId, true);
+    } else {
+        markEntryIncorrectOnce(practiseState.clozeQuestion.entryId);
     }
     showClozeWordBarOnAttempt();
 }
@@ -590,6 +663,7 @@ function giveUpCloze() {
     practiseState.awaitingNext = true;
     renderClozeWordBar();
     renderNextExerciseButton();
+    markEntryIncorrectOnce(practiseState.clozeQuestion.entryId);
     showClozeWordBarOnAttempt();
 }
 
@@ -745,8 +819,15 @@ async function prepareClozeQuestion() {
     practiseState.clozeLoading = true;
     practiseState.clozeQuestion = null;
 
-    const entries = [...practiseState.entries];
-    const target = entries[Math.floor(Math.random() * entries.length)];
+    const target = selectPractiseTarget();
+
+    if (!target) {
+        practiseState.clozeLoading = false;
+        renderClozeQuestion();
+        return;
+    }
+
+    setActiveEntry(target.id);
 
     try {
         const response = await fetch("/practise/cloze", {
@@ -830,8 +911,15 @@ async function prepareAiPractiseQuestion() {
     practiseState.aiQuestion = null;
     setAiPractiseLoading();
 
-    const entries = [...practiseState.entries];
-    const target = entries[Math.floor(Math.random() * entries.length)];
+    const target = selectPractiseTarget();
+
+    if (!target) {
+        practiseState.aiLoading = false;
+        showAiPractiseError("No entries available. Add words to practise.");
+        return;
+    }
+
+    setActiveEntry(target.id);
 
     try {
         const response = await fetch("/practise/ai", {
@@ -1000,10 +1088,12 @@ function handleAiPractiseSelection(optionId, button) {
         renderNextExerciseButton();
         revealDistractorAddButtons();
         logExerciseCompletion(practiseState.mode === "flash_da" ? "flash_da" : "flash_en");
+        markEntryResult(practiseState.aiQuestion.entryId, true);
     } else {
         button.classList.add("practise__card--incorrect");
         feedback.textContent = "That's one of the new words. Try again.";
         setTimeout(() => button.classList.remove("practise__card--incorrect"), 900);
+        markEntryIncorrectOnce(practiseState.aiQuestion.entryId);
     }
 }
 
