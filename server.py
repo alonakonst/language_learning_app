@@ -14,7 +14,7 @@ from google.cloud import texttospeech
 
 load_dotenv()
 
-from source import DictionaryEntry, ExerciseLog, User, database, llm_actions
+from source import DailyExerciseTotal, DictionaryEntry, User, database, llm_actions
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-secret-key")
@@ -68,7 +68,7 @@ def init_database():
                 app.logger.exception("Unable to add created_at column automatically.")
 
     database.create_tables([DictionaryEntry], safe=True)
-    database.create_tables([ExerciseLog], safe=True)
+    database.create_tables([DailyExerciseTotal], safe=True)
 
 
 @app.teardown_appcontext
@@ -432,6 +432,39 @@ def _daily_counts(model, date_field, days: int):
     return padded, start_date, today
 
 
+def _daily_totals(model, date_field, count_field, days: int):
+    today = datetime.utcnow().date()
+    start_date = today - timedelta(days=days - 1)
+    date_expr = date_field
+
+    query = (
+        model.select(
+            date_expr.alias("day"),
+            fn.SUM(count_field).alias("count"),
+        )
+        .where(
+            (model.user == g.user)
+            & (date_field.is_null(False))
+            & (date_field >= start_date)
+        )
+        .group_by(date_expr)
+        .order_by(date_expr)
+    )
+
+    results = []
+    for row in query.dicts():
+        iso_day = _to_iso_date(row.get("day"))
+        results.append({"date": iso_day, "count": row.get("count", 0) or 0})
+
+    counts_map = {item["date"]: item["count"] for item in results}
+    padded = []
+    for offset in range(days - 1, -1, -1):
+        day = start_date + timedelta(days=offset)
+        key = _to_iso_date(day)
+        padded.append({"date": key, "count": counts_map.get(key, 0)})
+    return padded, start_date, today
+
+
 @app.route("/progress/daily", methods=["GET"])
 @login_required
 def progress_daily():
@@ -444,7 +477,7 @@ def progress_daily():
     days = max(1, min(days, 90))
 
     word_days, start_date, today = _daily_counts(DictionaryEntry, DictionaryEntry.created_at, days)
-    exercise_days, _, _ = _daily_counts(ExerciseLog, ExerciseLog.created_at, days)
+    exercise_days, _, _ = _daily_totals(DailyExerciseTotal, DailyExerciseTotal.day, DailyExerciseTotal.count, days)
 
     total_entries = (
         DictionaryEntry.select()
@@ -452,9 +485,9 @@ def progress_daily():
         .count()
     )
     total_exercises = (
-        ExerciseLog.select()
-        .where(ExerciseLog.user == g.user)
-        .count()
+        DailyExerciseTotal.select(fn.SUM(DailyExerciseTotal.count))
+        .where(DailyExerciseTotal.user == g.user)
+        .scalar() or 0
     )
 
     return jsonify(
@@ -473,13 +506,17 @@ def progress_daily():
 @app.route("/progress/exercise", methods=["POST"])
 @login_required
 def progress_exercise():
-    data = request.get_json() or {}
-    kind = (data.get("kind") or "practise").strip()[:32] or "practise"
-    ExerciseLog.create(
-        user=g.user,
-        kind=kind,
-        created_at=datetime.utcnow(),
+    today = datetime.utcnow().date()
+    existing = DailyExerciseTotal.get_or_none(
+        (DailyExerciseTotal.user == g.user) & (DailyExerciseTotal.day == today)
     )
+    if existing:
+        DailyExerciseTotal.update(count=DailyExerciseTotal.count + 1).where(
+            (DailyExerciseTotal.user == g.user) & (DailyExerciseTotal.day == today)
+        ).execute()
+    else:
+        DailyExerciseTotal.create(user=g.user, day=today, count=1)
+
     return jsonify({"status": "ok"})
 
 

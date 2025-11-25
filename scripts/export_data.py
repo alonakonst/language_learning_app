@@ -20,13 +20,25 @@ else:
 
 from source.user import User  # noqa: E402
 from source.dictionary_entry import DictionaryEntry  # noqa: E402
-from source.exercise_log import ExerciseLog  # noqa: E402
+from source.daily_exercise_total import DailyExerciseTotal  # noqa: E402
 from source.database import database  # noqa: E402
 
 
 def export() -> dict:
     if database.is_closed():
         database.connect()
+
+    daily_totals = []
+    try:
+        if database.table_exists(DailyExerciseTotal._meta.table_name):
+            daily_totals = [
+                {"user_id": row.user_id, "day": row.day.isoformat(), "count": row.count}
+                for row in DailyExerciseTotal.select().order_by(
+                    DailyExerciseTotal.day, DailyExerciseTotal.user_id
+                )
+            ]
+    except Exception:
+        daily_totals = []
 
     data = {
         "users": [
@@ -51,32 +63,8 @@ def export() -> dict:
             }
             for entry in DictionaryEntry.select().order_by(DictionaryEntry.id)
         ],
-        "exercise_logs": [
-            {
-                "id": log.id,
-                "user_id": log.user_id,
-                "created_at": (
-                    log.created_at.isoformat() if getattr(log, "created_at", None) else None
-                ),
-            }
-            for log in ExerciseLog.select().order_by(ExerciseLog.id)
-        ],
+        "daily_exercise_totals": daily_totals,
     }
-
-    # Add daily aggregates for convenience if exercise logs exist.
-    if data["exercise_logs"]:
-        aggregates = {}
-        for log in data["exercise_logs"]:
-            date_str = (log.get("created_at") or "")[:10]
-            user_id = log.get("user_id")
-            if not date_str or user_id is None:
-                continue
-            key = (user_id, date_str)
-            aggregates[key] = aggregates.get(key, 0) + 1
-        data["exercise_logs_daily"] = [
-            {"user_id": user_id, "date": date_str, "count": count}
-            for (user_id, date_str), count in sorted(aggregates.items())
-        ]
 
     return data
 
