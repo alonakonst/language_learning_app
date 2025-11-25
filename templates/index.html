@@ -49,31 +49,27 @@
         <section id="dictionaryView" class="page">
             <div class="card">
                 <label class="field">
-                    <span class="field__label">Translation direction</span>
-                    <select id="translationDirection">
-                        <option value="en-da" selected>English → Danish</option>
-                        <option value="da-en">Danish → English</option>
-                    </select>
-                </label>
-
-                <label class="field">
-                    <span class="field__label" id="englishLabel">English (source)</span>
+                    <span class="field__label">English</span>
                     <textarea id="englishInput" placeholder="Write a phrase in English"></textarea>
                 </label>
+                <p class="translation-suggestion translation-suggestion--hidden" id="translationResultEnglish"></p>
 
                 <label class="field">
-                    <span class="field__label" id="danishLabel">Danish (translation)</span>
-                    <textarea id="danishInput" placeholder="Add your Danish translation"></textarea>
+                    <span class="field__label">🇩🇰 Danish</span>
+                    <textarea id="danishInput" placeholder="Write a phrase in Danish"></textarea>
                 </label>
+                <p class="translation-suggestion translation-suggestion--hidden" id="translationResultDanish"></p>
 
-                <button class="btn btn--primary" id="translateButton">Suggest translation</button>
-
-                <div class="card card--result">
-                    <span class="card__subtitle">Suggested translation</span>
-                    <p id="translationResult">...</p>
+                <div class="translate-actions">
+                    <button class="btn btn--secondary translate-actions__translate" id="translateButton">
+                        Suggest translation to Danish
+                    </button>
+                    <button class="translate-actions__toggle" id="toggleDirectionButton" aria-label="Swap translation direction">
+                        ⇄
+                    </button>
                 </div>
 
-                <button class="btn btn--secondary" id="saveButton">Save</button>
+                <button class="btn btn--primary" id="saveButton">Save</button>
             </div>
 
             <section id="entriesSection" class="card">

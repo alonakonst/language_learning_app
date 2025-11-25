@@ -30,6 +30,13 @@ const addWordState = {
     isExternalInput: true,
 };
 
+const translationState = {
+    suggestion: "",
+    targetFieldId: "danishInput",
+    inlineApplied: false,
+    direction: "en-da",
+};
+
 const entryModalState = {
     entryId: null,
     entryText: "",
@@ -109,6 +116,16 @@ function normalizeEntries(entries = []) {
     return entries
         .map((entry) => normalizeEntryForDisplay(entry))
         .filter((entry) => entry !== null);
+}
+
+function detectDirectionFromText(text, fallback = "en-da") {
+    const value = toDisplayText(text).toLowerCase();
+    if (!value) {
+        return fallback;
+    }
+    // Basic heuristic: Danish characters tip toward da-en, otherwise default to en-da.
+    const hasDanishChars = /[æøå]/i.test(value);
+    return hasDanishChars ? "da-en" : "en-da";
 }
 
 function getIsoDate(value = new Date()) {
@@ -1028,8 +1045,132 @@ function clearEntriesList(message = "No entries saved yet.") {
     list.innerHTML = `<li>${message}</li>`;
 }
 
-function getDirection() {
-    return document.getElementById("translationDirection")?.value ?? "en-da";
+function getTranslationResultElement() {
+    const direction = getTranslationDirection();
+    const id = direction === "en-da" ? "translationResultDanish" : "translationResultEnglish";
+    return document.getElementById(id);
+}
+
+function hideAllTranslationMessages() {
+    setTranslationMessage("", document.getElementById("translationResultEnglish"));
+    setTranslationMessage("", document.getElementById("translationResultDanish"));
+}
+
+function applySuggestionToField(targetField, suggestion) {
+    if (!targetField) {
+        return;
+    }
+    targetField.value = suggestion;
+    translationState.inlineApplied = true;
+    renderTranslationSuggestion();
+}
+
+function getTranslationDirection() {
+    return translationState.direction === "da-en" ? "da-en" : "en-da";
+}
+
+function setTranslationMessage(message = "", element = null) {
+    const result = element || getTranslationResultElement();
+    if (!result) {
+        return;
+    }
+    result.textContent = message || "";
+    result.classList.toggle("translation-suggestion--hidden", !message);
+}
+
+function setTranslationDirection(direction = "en-da") {
+    const normalized = direction === "da-en" ? "da-en" : "en-da";
+    if (translationState.direction === normalized) {
+        updateTranslateButtonText();
+        return;
+    }
+    translationState.direction = normalized;
+    translationState.targetFieldId = normalized === "en-da" ? "danishInput" : "englishInput";
+    translationState.inlineApplied = false;
+    translationState.suggestion = "";
+    hideAllTranslationMessages();
+    updateTranslateButtonText();
+}
+
+function resolveTranslationDirection() {
+    const { englishField, danishField } = getFieldsByDirection();
+    const englishText = toDisplayText(englishField?.value || "");
+    const danishText = toDisplayText(danishField?.value || "");
+    let direction = getTranslationDirection();
+
+    if (englishText && !danishText) {
+        direction = "en-da";
+    } else if (!englishText && danishText) {
+        direction = "da-en";
+    }
+
+    setTranslationDirection(direction);
+
+    return {
+        direction,
+        sourceField: direction === "en-da" ? englishField : danishField,
+        targetField: direction === "en-da" ? danishField : englishField,
+    };
+}
+
+function toggleTranslationDirection() {
+    const nextDirection = getTranslationDirection() === "en-da" ? "da-en" : "en-da";
+    setTranslationDirection(nextDirection);
+}
+
+function updateTranslateButtonText() {
+    const translateButton = document.getElementById("translateButton");
+    if (!translateButton) {
+        return;
+    }
+    const targetLabel = getTranslationDirection() === "en-da" ? "Danish" : "English";
+    translateButton.textContent = `Suggest translation to ${targetLabel}`;
+}
+
+function renderTranslationSuggestion() {
+    hideAllTranslationMessages();
+    const result = getTranslationResultElement();
+    if (!result) {
+        return;
+    }
+
+    const targetField = document.getElementById(translationState.targetFieldId);
+    const targetValue = toDisplayText(targetField?.value || "");
+    const suggestion = toDisplayText(translationState.suggestion || "");
+
+    if (!suggestion) {
+        setTranslationMessage("", result);
+        return;
+    }
+
+    // If we filled the target field because it was empty, keep the hint hidden
+    // while the user hasn't changed it.
+    if (translationState.inlineApplied && targetValue === suggestion) {
+        setTranslationMessage("", result);
+        return;
+    }
+
+    // Show the stored suggestion as a selectable chip under the target field.
+    result.classList.remove("translation-suggestion--hidden");
+    result.innerHTML = `<button type="button" class="translation-chip" id="translationSuggestionChip">${escapeHtml(
+        suggestion
+    )}</button>`;
+    const chip = document.getElementById("translationSuggestionChip");
+    chip?.addEventListener("click", () => applySuggestionToField(targetField, suggestion));
+}
+
+function handleTranslationFieldInput(fieldId) {
+    if (!fieldId) {
+        return;
+    }
+    const field = document.getElementById(fieldId);
+    if (translationState.targetFieldId === fieldId && translationState.suggestion) {
+        const value = toDisplayText(field?.value || "");
+        if (value !== translationState.suggestion) {
+            translationState.inlineApplied = false;
+        }
+    }
+    renderTranslationSuggestion();
 }
 
 function getModeLabel(mode) {
@@ -1045,52 +1186,16 @@ function getModeLabel(mode) {
 function getFieldsByDirection() {
     const englishField = document.getElementById("englishInput");
     const danishField = document.getElementById("danishInput");
-    const direction = getDirection();
-
-    return {
-        direction,
-        englishField,
-        danishField,
-        sourceField: direction === "en-da" ? englishField : danishField,
-        targetField: direction === "en-da" ? danishField : englishField,
-    };
-}
-
-function updateDirectionUI() {
-    const { direction, englishField, danishField } = getFieldsByDirection();
-    const englishLabel = document.getElementById("englishLabel");
-    const danishLabel = document.getElementById("danishLabel");
-
-    if (direction === "da-en") {
-        if (englishLabel) {
-            englishLabel.textContent = "English (translation)";
-        }
-        if (danishLabel) {
-            danishLabel.textContent = "Danish (source)";
-        }
-        englishField?.setAttribute("placeholder", "Translated English words");
-        danishField?.setAttribute("placeholder", "Write a phrase in Danish");
-    } else {
-        if (englishLabel) {
-            englishLabel.textContent = "English (source)";
-        }
-        if (danishLabel) {
-            danishLabel.textContent = "Danish (translation)";
-        }
-        englishField?.setAttribute("placeholder", "Write a phrase in English");
-        danishField?.setAttribute("placeholder", "Add your Danish translation");
-    }
+    return { englishField, danishField };
 }
 
 async function translateText() {
-    const { direction, sourceField, targetField } = getFieldsByDirection();
-    const input = (sourceField?.value ?? "").trim();
-    const result = document.getElementById("translationResult");
+    const { direction, sourceField, targetField } = resolveTranslationDirection();
+    const input = toDisplayText(sourceField?.value || "");
 
     if (input === "") {
-        if (result) {
-            result.textContent = "Please type something!";
-        }
+        const sourceLabel = direction === "en-da" ? "English" : "Danish";
+        setTranslationMessage(`Type something in ${sourceLabel} first.`);
         return;
     }
 
@@ -1108,24 +1213,26 @@ async function translateText() {
             throw new Error(data.error || "Translation failed");
         }
         const normalizedTranslation = toDisplayText(data.translation || "");
-        if (result) {
-            result.textContent = normalizedTranslation;
-        }
-        if (targetField) {
+        translationState.suggestion = normalizedTranslation;
+        translationState.targetFieldId = targetField?.id || "danishInput";
+        if (targetField && !toDisplayText(targetField.value)) {
+            // Target empty: place suggestion directly into the field and hide hint
             targetField.value = normalizedTranslation;
+            translationState.inlineApplied = true;
+        } else {
+            // Target had content: keep it and show suggestion underneath
+            translationState.inlineApplied = false;
         }
+        renderTranslationSuggestion();
     } catch (error) {
         console.error("Error:", error);
-        if (result) {
-            result.textContent = "Error during translation";
-        }
+        setTranslationMessage("Error during translation");
     }
 }
 
 function clearEntryInputs() {
     const englishField = document.getElementById("englishInput");
     const danishField = document.getElementById("danishInput");
-    const translationResult = document.getElementById("translationResult");
 
     if (englishField) {
         englishField.value = "";
@@ -1133,9 +1240,10 @@ function clearEntryInputs() {
     if (danishField) {
         danishField.value = "";
     }
-    if (translationResult) {
-        translationResult.textContent = "...";
-    }
+    hideAllTranslationMessages();
+    translationState.suggestion = "";
+    translationState.inlineApplied = false;
+    translationState.targetFieldId = getTranslationDirection() === "en-da" ? "danishInput" : "englishInput";
 }
 
 function resetProgressState(message = "Sign in to see your progress.") {
@@ -1427,7 +1535,7 @@ function renderEntries(entries) {
         const deleteButton = document.createElement("button");
         deleteButton.type = "button";
         deleteButton.classList.add("entry-item__delete");
-        deleteButton.textContent = "Delete";
+        deleteButton.textContent = "🗑";
         deleteButton.addEventListener("click", () => deleteEntry(entry.id));
 
         actions.appendChild(viewButton);
@@ -1946,15 +2054,18 @@ async function translateAddWord() {
 
     let sourceField = englishField;
     let targetField = danishField;
-    let direction = "en-da";
+    let direction = detectDirectionFromText(englishValue || danishValue);
 
-    if (danishValue && !englishValue) {
-        sourceField = danishField;
-        targetField = englishField;
-        direction = "da-en";
-    } else if (!englishValue && !danishValue) {
+    if (!englishValue && !danishValue) {
         showStatus(status, "Type something to translate.");
         return;
+    }
+    if (!englishValue && danishValue) {
+        sourceField = danishField;
+        targetField = englishField;
+    } else if (englishValue && !danishValue) {
+        sourceField = englishField;
+        targetField = danishField;
     }
 
     const text = sourceField.value.trim();
@@ -1984,6 +2095,12 @@ async function translateAddWord() {
         const translation = toDisplayText(data.translation || "");
         targetField.value = translation;
         showStatus(status, "Filled suggestion.", false);
+        if (targetField.id === "danishInput" || targetField.id === "englishInput") {
+            translationState.suggestion = translation;
+            translationState.targetFieldId = targetField.id;
+            translationState.inlineApplied = !toDisplayText(targetField.value);
+            renderTranslationSuggestion();
+        }
     } catch (error) {
         console.error("Error translating add-word entry:", error);
         showStatus(status, "Unable to translate right now.");
@@ -2090,6 +2207,7 @@ async function checkAuthStatus() {
 
 function initApp() {
     document.getElementById("translateButton")?.addEventListener("click", translateText);
+    document.getElementById("toggleDirectionButton")?.addEventListener("click", toggleTranslationDirection);
     document.getElementById("saveButton")?.addEventListener("click", SaveToDatabase);
     document.getElementById("loginButton")?.addEventListener("click", loginUser);
     document.getElementById("registerButton")?.addEventListener("click", registerUser);
@@ -2127,10 +2245,6 @@ function initApp() {
             closeAddWordModal();
         }
     });
-    document.getElementById("translationDirection")?.addEventListener("change", () => {
-        clearEntryInputs();
-        updateDirectionUI();
-    });
     document
         .getElementById("practiseAiNextButton")
         ?.addEventListener("click", () => prepareAiPractiseQuestion());
@@ -2151,8 +2265,16 @@ function initApp() {
         showPractiseModeSelection();
     });
 
+    document.getElementById("englishInput")?.addEventListener("input", () =>
+        handleTranslationFieldInput("englishInput")
+    );
+    document.getElementById("danishInput")?.addEventListener("input", () =>
+        handleTranslationFieldInput("danishInput")
+    );
+
+    setTranslationDirection(getTranslationDirection());
+
     clearEntriesList("Sign in to see your saved words.");
-    updateDirectionUI();
     checkAuthStatus();
     resetPractiseState("Sign in to start practising.");
     updateAiPractiseAvailability();
