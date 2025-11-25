@@ -21,6 +21,7 @@ else:
 
 from source.user import User  # noqa: E402
 from source.dictionary_entry import DictionaryEntry  # noqa: E402
+from source.exercise_log import ExerciseLog  # noqa: E402
 from source.database import database  # noqa: E402
 
 
@@ -42,11 +43,35 @@ def reset_sequence(model) -> None:
 def import_data(payload: Dict[str, Any]) -> Dict[str, int]:
     users: List[Dict[str, Any]] = payload.get("users", [])
     entries: List[Dict[str, Any]] = payload.get("entries", [])
+    exercise_logs: List[Dict[str, Any]] = payload.get("exercise_logs", [])
+    exercise_logs_daily: List[Dict[str, Any]] = payload.get("exercise_logs_daily", [])
 
     if database.is_closed():
         database.connect()
 
+    # Expand daily aggregates into individual ExerciseLog rows for compatibility.
+    if exercise_logs_daily and not exercise_logs:
+        expanded: List[Dict[str, Any]] = []
+        for item in exercise_logs_daily:
+            try:
+                user_id = int(item.get("user_id"))
+            except Exception:
+                continue
+            date = (item.get("date") or "").strip()
+            count = int(item.get("count") or 0)
+            if count <= 0 or not date:
+                continue
+            for i in range(count):
+                expanded.append(
+                    {
+                        "user_id": user_id,
+                        "created_at": f"{date}T12:{str(i).zfill(2)}:00",
+                    }
+                )
+        exercise_logs = expanded
+
     with database.atomic():
+        ExerciseLog.delete().execute()
         DictionaryEntry.delete().execute()
         User.delete().execute()
 
@@ -54,11 +79,14 @@ def import_data(payload: Dict[str, Any]) -> Dict[str, int]:
             User.insert_many(users).execute()
         if entries:
             DictionaryEntry.insert_many(entries).execute()
+        if exercise_logs:
+            ExerciseLog.insert_many(exercise_logs).execute()
 
         reset_sequence(User)
         reset_sequence(DictionaryEntry)
+        reset_sequence(ExerciseLog)
 
-    return {"users": len(users), "entries": len(entries)}
+    return {"users": len(users), "entries": len(entries), "exercise_logs": len(exercise_logs)}
 
 
 def main() -> int:

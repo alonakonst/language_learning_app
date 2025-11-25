@@ -20,6 +20,7 @@ else:
 
 from source.user import User  # noqa: E402
 from source.dictionary_entry import DictionaryEntry  # noqa: E402
+from source.exercise_log import ExerciseLog  # noqa: E402
 from source.database import database  # noqa: E402
 
 
@@ -27,7 +28,7 @@ def export() -> dict:
     if database.is_closed():
         database.connect()
 
-    return {
+    data = {
         "users": [
             {
                 "id": user.id,
@@ -44,10 +45,40 @@ def export() -> dict:
                 "translation": entry.translation,
                 "notes": entry.notes,
                 "is_external_input": bool(getattr(entry, "is_external_input", True)),
+                "created_at": (
+                    entry.created_at.isoformat() if getattr(entry, "created_at", None) else None
+                ),
             }
             for entry in DictionaryEntry.select().order_by(DictionaryEntry.id)
         ],
+        "exercise_logs": [
+            {
+                "id": log.id,
+                "user_id": log.user_id,
+                "created_at": (
+                    log.created_at.isoformat() if getattr(log, "created_at", None) else None
+                ),
+            }
+            for log in ExerciseLog.select().order_by(ExerciseLog.id)
+        ],
     }
+
+    # Add daily aggregates for convenience if exercise logs exist.
+    if data["exercise_logs"]:
+        aggregates = {}
+        for log in data["exercise_logs"]:
+            date_str = (log.get("created_at") or "")[:10]
+            user_id = log.get("user_id")
+            if not date_str or user_id is None:
+                continue
+            key = (user_id, date_str)
+            aggregates[key] = aggregates.get(key, 0) + 1
+        data["exercise_logs_daily"] = [
+            {"user_id": user_id, "date": date_str, "count": count}
+            for (user_id, date_str), count in sorted(aggregates.items())
+        ]
+
+    return data
 
 
 def main() -> int:
