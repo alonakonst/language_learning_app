@@ -4,15 +4,17 @@ import os
 import random
 import json
 import re
+from datetime import datetime, timedelta
 
 from dotenv import load_dotenv
 from flask import Flask, render_template, request, jsonify, session, g, make_response
+from peewee import fn
 from werkzeug.security import check_password_hash, generate_password_hash
 from google.cloud import texttospeech
 
 load_dotenv()
 
-from source import DictionaryEntry, User, database, llm_actions
+from source import DictionaryEntry, ExerciseLog, User, database, llm_actions
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-secret-key")
@@ -49,8 +51,24 @@ def init_database():
                     )
             except Exception:
                 app.logger.exception("Unable to add is_external_input column automatically.")
+        if "created_at" not in existing_columns:
+            try:
+                if database.__class__.__name__ == "SqliteDatabase":
+                    database.execute_sql(
+                        f'ALTER TABLE "{table_name}" ADD COLUMN "created_at" TIMESTAMP'
+                    )
+                    database.execute_sql(
+                        f'UPDATE "{table_name}" SET "created_at" = CURRENT_TIMESTAMP WHERE "created_at" IS NULL'
+                    )
+                else:
+                    database.execute_sql(
+                        f'ALTER TABLE "{table_name}" ADD COLUMN "created_at" TIMESTAMP DEFAULT CURRENT_TIMESTAMP'
+                    )
+            except Exception:
+                app.logger.exception("Unable to add created_at column automatically.")
 
     database.create_tables([DictionaryEntry], safe=True)
+    database.create_tables([ExerciseLog], safe=True)
 
 
 @app.teardown_appcontext
@@ -64,6 +82,17 @@ init_database()
 def _load_example_from_notes(entry: DictionaryEntry):
     examples = _load_examples_from_notes(entry.notes)
     return examples[0] if examples else None
+
+
+def _to_iso_date(value):
+    if not value:
+        return ""
+    try:
+        if hasattr(value, "date"):
+            return value.date().isoformat()
+        return value.isoformat()
+    except Exception:
+        return str(value)
 
 
 def _load_examples_from_notes(notes: str):
@@ -355,6 +384,7 @@ def list_entries():
             "id": entry.id,
             "text": entry.text,
             "translation": entry.translation,
+            "created_at": entry.created_at.isoformat() if getattr(entry, "created_at", None) else None,
             "notes": entry.notes,
             "is_external_input": bool(getattr(entry, "is_external_input", True)),
             "example": (_load_examples_from_notes(entry.notes) or [None])[0],
@@ -367,6 +397,90 @@ def list_entries():
         )
     ]
     return jsonify({"entries": entries})
+
+
+def _daily_counts(model, date_field, days: int):
+    today = datetime.utcnow().date()
+    start_date = today - timedelta(days=days - 1)
+    date_expr = fn.DATE(date_field)
+
+    query = (
+        model.select(
+            date_expr.alias("day"),
+            fn.COUNT(model.id).alias("count"),
+        )
+        .where(
+            (model.user == g.user)
+            & (date_field.is_null(False))
+            & (date_field >= start_date)
+        )
+        .group_by(date_expr)
+        .order_by(date_expr)
+    )
+
+    results = []
+    for row in query.dicts():
+        iso_day = _to_iso_date(row.get("day"))
+        results.append({"date": iso_day, "count": row.get("count", 0)})
+    # Pad missing days with zeros for the full window
+    counts_map = {item["date"]: item["count"] for item in results}
+    padded = []
+    for offset in range(days - 1, -1, -1):
+        day = start_date + timedelta(days=offset)
+        key = _to_iso_date(day)
+        padded.append({"date": key, "count": counts_map.get(key, 0)})
+    return padded, start_date, today
+
+
+@app.route("/progress/daily", methods=["GET"])
+@login_required
+def progress_daily():
+    days_param = request.args.get("days")
+    try:
+        days = int(days_param) if days_param else 7
+    except (TypeError, ValueError):
+        days = 7
+
+    days = max(1, min(days, 90))
+
+    word_days, start_date, today = _daily_counts(DictionaryEntry, DictionaryEntry.created_at, days)
+    exercise_days, _, _ = _daily_counts(ExerciseLog, ExerciseLog.created_at, days)
+
+    total_entries = (
+        DictionaryEntry.select()
+        .where(DictionaryEntry.user == g.user)
+        .count()
+    )
+    total_exercises = (
+        ExerciseLog.select()
+        .where(ExerciseLog.user == g.user)
+        .count()
+    )
+
+    return jsonify(
+        {
+            "words": word_days,
+            "exercises": exercise_days,
+            "total_entries": total_entries,
+            "total_exercises": total_exercises,
+            "start_date": start_date.isoformat(),
+            "end_date": today.isoformat(),
+            "window_days": days,
+        }
+    )
+
+
+@app.route("/progress/exercise", methods=["POST"])
+@login_required
+def progress_exercise():
+    data = request.get_json() or {}
+    kind = (data.get("kind") or "practise").strip()[:32] or "practise"
+    ExerciseLog.create(
+        user=g.user,
+        kind=kind,
+        created_at=datetime.utcnow(),
+    )
+    return jsonify({"status": "ok"})
 
 
 @app.route("/entries/<int:entry_id>/example", methods=["POST"])

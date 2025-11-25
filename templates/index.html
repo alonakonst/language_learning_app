@@ -143,6 +143,55 @@
                 </div>
             </div>
         </section>
+
+        <section id="progressView" class="page">
+            <div class="card">
+                <div class="progress__head">
+                    <h2 class="card__title">Progress</h2>
+                    <p class="progress__range" id="progressRange">Last 7 days</p>
+                </div>
+                <div class="progress__block">
+                    <div class="progress__block-head">
+                        <p class="progress__block-title">Words added</p>
+                        <p class="progress__summary" id="progressSummaryWords">
+                            Daily adds over the last week.
+                        </p>
+                    </div>
+                    <div class="progress__chart" id="progressChartWords"></div>
+                    <p class="progress__empty" id="progressEmptyWords">Add a word to see your graph.</p>
+                    <div class="progress__stats">
+                        <div class="progress__stat">
+                            <span class="progress__stat-label">Total saved</span>
+                            <span class="progress__stat-value" id="progressTotalWords">0</span>
+                        </div>
+                        <div class="progress__stat">
+                            <span class="progress__stat-label">Best day</span>
+                            <span class="progress__stat-value" id="progressBestDayWords">–</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="progress__block">
+                    <div class="progress__block-head">
+                        <p class="progress__block-title">Exercises completed</p>
+                        <p class="progress__summary" id="progressSummaryExercises">
+                            Completed practise across modes.
+                        </p>
+                    </div>
+                    <div class="progress__chart" id="progressChartExercises"></div>
+                    <p class="progress__empty" id="progressEmptyExercises">Complete an exercise to see your graph.</p>
+                    <div class="progress__stats">
+                        <div class="progress__stat">
+                            <span class="progress__stat-label">Total completed</span>
+                            <span class="progress__stat-value" id="progressTotalExercises">0</span>
+                        </div>
+                        <div class="progress__stat">
+                            <span class="progress__stat-label">Best day</span>
+                            <span class="progress__stat-value" id="progressBestDayExercises">–</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
     </main>
 
     <div class="modal modal--hidden" id="entryModal" role="dialog" aria-modal="true">
@@ -202,8 +251,11 @@
         <button class="tab" data-view="practise">
             <span>Practise</span>
         </button>
+        <button class="tab" data-view="progress">
+            <span>Progress</span>
+        </button>
     </nav>
 
-    <script src="{{ url_for('static', filename='script.js') }}"></script>
+    <script src="{{ url_for('static', filename='script.js', v='progress3') }}"></script>
 </body>
 </html>

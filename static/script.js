@@ -15,6 +15,15 @@ const practiseState = {
     awaitingNext: false,
 };
 
+const progressState = {
+    dailyWords: [],
+    dailyExercises: [],
+    totalWords: 0,
+    totalExercises: 0,
+    windowDays: 7,
+    loading: false,
+};
+
 const addWordState = {
     english: "",
     danish: "",
@@ -100,6 +109,69 @@ function normalizeEntries(entries = []) {
     return entries
         .map((entry) => normalizeEntryForDisplay(entry))
         .filter((entry) => entry !== null);
+}
+
+function getIsoDate(value = new Date()) {
+    const formatLocal = (dateObj) => {
+        const y = dateObj.getFullYear();
+        const m = String(dateObj.getMonth() + 1).padStart(2, "0");
+        const d = String(dateObj.getDate()).padStart(2, "0");
+        return `${y}-${m}-${d}`;
+    };
+
+    if (value instanceof Date) {
+        return formatLocal(value);
+    }
+    const text = toDisplayText(value).slice(0, 10);
+    if (text.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        return text;
+    }
+    try {
+        const parsed = new Date(value);
+        if (Number.isNaN(parsed.getTime())) {
+            return "";
+        }
+        return formatLocal(parsed);
+    } catch (error) {
+        return "";
+    }
+}
+
+function hydrateProgressDays(rawDays = [], windowDays = 7) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const map = new Map();
+    rawDays.forEach((day) => {
+        const key = getIsoDate(day.date);
+        if (key) {
+            map.set(key, Number(day.count) || 0);
+        }
+    });
+
+    const days = [];
+    for (let offset = windowDays - 1; offset >= 0; offset -= 1) {
+        const date = new Date(today);
+        date.setDate(today.getDate() - offset);
+        const key = getIsoDate(date);
+        days.push({ date: key, count: map.get(key) ?? 0 });
+    }
+    return days;
+}
+
+function formatDayLabel(dateString) {
+    if (!dateString) {
+        return "";
+    }
+    const date = new Date(`${dateString}T00:00:00Z`);
+    return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function formatLongDayLabel(dateString) {
+    if (!dateString) {
+        return "";
+    }
+    const date = new Date(`${dateString}T00:00:00Z`);
+    return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
 const COMMON_DA_WORDS = new Set(
@@ -427,6 +499,7 @@ function checkClozeAnswer() {
         practiseState.awaitingNext = true;
         renderClozeWordBar();
         renderNextExerciseButton();
+        logExerciseCompletion("cloze");
     }
     showClozeWordBarOnAttempt();
 }
@@ -909,6 +982,7 @@ function handleAiPractiseSelection(optionId, button) {
         options.classList.add("practise__options--disabled");
         renderNextExerciseButton();
         revealDistractorAddButtons();
+        logExerciseCompletion(practiseState.mode === "flash_da" ? "flash_da" : "flash_en");
     } else {
         button.classList.add("practise__card--incorrect");
         feedback.textContent = "That's one of the new words. Try again.";
@@ -1064,6 +1138,190 @@ function clearEntryInputs() {
     }
 }
 
+function resetProgressState(message = "Sign in to see your progress.") {
+    progressState.dailyWords = [];
+    progressState.dailyExercises = [];
+    progressState.totalWords = 0;
+    progressState.totalExercises = 0;
+    renderProgress(message);
+}
+
+function renderProgressChart(days, chartId) {
+    const chart = document.getElementById(chartId);
+    if (!chart) {
+        return;
+    }
+
+    const usableDays =
+        days && days.length > 0
+            ? days
+            : hydrateProgressDays([], progressState.windowDays);
+
+    const todayKey = getIsoDate(new Date());
+    const maxCount = Math.max(...usableDays.map((day) => day.count), 1);
+
+    chart.innerHTML = "";
+
+    usableDays.forEach((day) => {
+        const column = document.createElement("div");
+        column.className = "progress__column";
+
+        const shell = document.createElement("div");
+        shell.className = "progress__bar-shell";
+
+        const bar = document.createElement("div");
+        bar.className = "progress__bar";
+        if (day.date === todayKey) {
+            bar.classList.add("progress__bar--today");
+        }
+
+        const height =
+            day.count === 0
+                ? 6
+                : Math.min(100, Math.max(12, (day.count / maxCount) * 100));
+        bar.style.height = `${height}%`;
+
+        if (day.count > 0) {
+            const countLabel = document.createElement("span");
+            countLabel.className = "progress__bar-count";
+            countLabel.textContent = day.count;
+            bar.appendChild(countLabel);
+        }
+
+        shell.appendChild(bar);
+        column.appendChild(shell);
+
+        const label = document.createElement("span");
+        label.className = "progress__day";
+        label.textContent = formatDayLabel(day.date);
+        column.appendChild(label);
+
+        chart.appendChild(column);
+    });
+}
+
+function renderProgress(message = null) {
+    const range = document.getElementById("progressRange");
+    const emptyWords = document.getElementById("progressEmptyWords");
+    const emptyExercises = document.getElementById("progressEmptyExercises");
+    const totalWords = document.getElementById("progressTotalWords");
+    const totalExercises = document.getElementById("progressTotalExercises");
+    const bestDayWords = document.getElementById("progressBestDayWords");
+    const bestDayExercises = document.getElementById("progressBestDayExercises");
+
+    if (range) {
+        range.textContent = `Last ${progressState.windowDays} days`;
+    }
+
+    const hasWordData = progressState.dailyWords.some((day) => day.count > 0);
+    const hasExerciseData = progressState.dailyExercises.some((day) => day.count > 0);
+    const emptyWordsMessage =
+        message ||
+        (authState.authenticated
+            ? "Add a word to see your graph."
+            : "Sign in to track your additions.");
+    const emptyExercisesMessage =
+        message ||
+        (authState.authenticated
+            ? "Complete an exercise to see your graph."
+            : "Sign in to track your practise.");
+
+    if (emptyWords) {
+        emptyWords.textContent = emptyWordsMessage;
+        emptyWords.classList.toggle("is-hidden", hasWordData);
+    }
+    if (emptyExercises) {
+        emptyExercises.textContent = emptyExercisesMessage;
+        emptyExercises.classList.toggle("is-hidden", hasExerciseData);
+    }
+
+    if (totalWords) {
+        totalWords.textContent = (progressState.totalWords || 0).toString();
+    }
+    if (totalExercises) {
+        totalExercises.textContent = (progressState.totalExercises || 0).toString();
+    }
+
+    const topWordDay = progressState.dailyWords.reduce(
+        (best, day) => (day.count > best.count ? day : best),
+        { count: 0, date: "" }
+    );
+    const topExerciseDay = progressState.dailyExercises.reduce(
+        (best, day) => (day.count > best.count ? day : best),
+        { count: 0, date: "" }
+    );
+
+    if (bestDayWords) {
+        bestDayWords.textContent =
+            topWordDay.count > 0
+                ? `${topWordDay.count} on ${formatLongDayLabel(topWordDay.date)}`
+                : "–";
+    }
+    if (bestDayExercises) {
+        bestDayExercises.textContent =
+            topExerciseDay.count > 0
+                ? `${topExerciseDay.count} on ${formatLongDayLabel(topExerciseDay.date)}`
+                : "–";
+    }
+
+    renderProgressChart(progressState.dailyWords, "progressChartWords");
+    renderProgressChart(progressState.dailyExercises, "progressChartExercises");
+}
+
+async function fetchProgress(days = progressState.windowDays) {
+    if (!authState.authenticated) {
+        resetProgressState("Sign in to see your progress.");
+        return;
+    }
+
+    progressState.loading = true;
+    try {
+        const response = await fetch(`/progress/daily?days=${days}`);
+
+        if (response.status === 401) {
+            updateAuthState(false, null);
+            return;
+        }
+
+        const data = await response.json();
+        progressState.windowDays = Number(data.window_days) || days;
+        progressState.totalWords = Number(data.total_entries) || 0;
+        progressState.totalExercises = Number(data.total_exercises) || 0;
+        const wordDays = Array.isArray(data.words) ? data.words : data.days || [];
+        const exerciseDays = Array.isArray(data.exercises) ? data.exercises : [];
+        progressState.dailyWords = hydrateProgressDays(
+            wordDays,
+            progressState.windowDays
+        );
+        progressState.dailyExercises = hydrateProgressDays(
+            exerciseDays,
+            progressState.windowDays
+        );
+        renderProgress();
+    } catch (error) {
+        console.error("Error fetching progress:", error);
+        renderProgress("Unable to load progress right now.");
+    } finally {
+        progressState.loading = false;
+    }
+}
+
+async function logExerciseCompletion(kind = "practise") {
+    if (!authState.authenticated) {
+        return;
+    }
+    try {
+        await fetch("/progress/exercise", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ kind }),
+        });
+        fetchProgress(progressState.windowDays);
+    } catch (error) {
+        console.error("Error logging exercise completion:", error);
+    }
+}
+
 async function SaveToDatabase() {
     const { englishField, danishField } = getFieldsByDirection();
     const englishText = (englishField?.value ?? "").trim();
@@ -1101,6 +1359,7 @@ async function SaveToDatabase() {
 
         if (result.status === "success") {
             fetchEntries();
+            fetchProgress(progressState.windowDays);
             clearEntryInputs();
         } else {
             alert(result.error || "Failed to save entry.");
@@ -1127,6 +1386,7 @@ async function fetchEntries() {
 
         const data = await response.json();
         renderEntries(data.entries);
+        fetchProgress(progressState.windowDays);
     } catch (error) {
         console.error("Error fetching entries:", error);
         list.innerHTML = "<li>Failed to load entries.</li>";
@@ -1196,6 +1456,11 @@ function switchView(view) {
         const isActive = tab.dataset.view === view && authState.authenticated;
         tab.classList.toggle("tab--active", isActive);
     });
+
+    if (view === "progress" && authState.authenticated) {
+        renderProgress();
+        fetchProgress(progressState.windowDays);
+    }
 }
 
 function updateAuthState(authenticated, username) {
@@ -1216,6 +1481,7 @@ function updateAuthState(authenticated, username) {
         fetchEntries();
         updateAiPractiseAvailability();
         renderPractisePages();
+        fetchProgress(progressState.windowDays);
     } else {
         if (greeting) {
             greeting.textContent = "";
@@ -1224,6 +1490,7 @@ function updateAuthState(authenticated, username) {
         tabBar?.classList.add("tab-bar--hidden");
         clearEntriesList("Sign in to see your saved words.");
         resetPractiseState("Sign in to start practising.");
+        resetProgressState("Sign in to see your progress.");
         switchView("auth");
     }
 }
@@ -1769,6 +2036,7 @@ async function saveWordFromModal() {
 
         showStatus(status, "Saved to your dictionary.", false);
         fetchEntries();
+        fetchProgress(progressState.windowDays);
         setTimeout(() => closeAddWordModal(), 500);
     } catch (error) {
         console.error("Error saving practise word:", error);
