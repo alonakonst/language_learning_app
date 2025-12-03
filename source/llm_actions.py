@@ -2,8 +2,10 @@
 import json
 import os
 import re
+from pathlib import Path
 
 from google.cloud import translate_v2 as translate
+from google.oauth2 import service_account
 from openai import OpenAI
 
 client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
@@ -37,11 +39,66 @@ def get_translation_to_english(content):
     return translate_google(content, "en")
 
 
+def _load_google_credentials():
+    """
+    Load Google credentials from either JSON text, a file path, or a bundled key file.
+
+    Priority:
+    1) GOOGLE_APPLICATION_CREDENTIALS_JSON (service account JSON string)
+    2) GOOGLE_APPLICATION_CREDENTIALS (path to JSON file)
+    3) project-local my-key.json (for Render deployments without env configuration)
+    """
+    json_blob = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS_JSON")
+    if json_blob:
+        try:
+            info = json.loads(json_blob)
+            return service_account.Credentials.from_service_account_info(info)
+        except Exception as exc:
+            raise RuntimeError("Invalid GOOGLE_APPLICATION_CREDENTIALS_JSON value.") from exc
+
+    path_str = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
+    if path_str:
+        cred_path = Path(path_str)
+        if not cred_path.exists():
+            raise RuntimeError(f"Google credentials file not found at {cred_path}.")
+        try:
+            return service_account.Credentials.from_service_account_file(str(cred_path))
+        except Exception as exc:
+            raise RuntimeError(f"Failed to load Google credentials from {cred_path}.") from exc
+
+    bundled_path = Path(__file__).resolve().parent.parent / "my-key.json"
+    if bundled_path.exists():
+        try:
+            return service_account.Credentials.from_service_account_file(str(bundled_path))
+        except Exception:
+            return None
+
+    return None
+
+
 def _get_translate_client():
     global _translate_client
     if _translate_client is None:
-        _translate_client = translate.Client()
+        credentials = _load_google_credentials()
+        if credentials is None:
+            return None
+        _translate_client = translate.Client(credentials=credentials)
     return _translate_client
+
+
+def _llm_translation_instruction(target_language: str) -> str:
+    target = (target_language or "").lower()
+    if target == "da":
+        return (
+            "Translate the following English text into natural Danish. "
+            "Respond with Danish only and keep punctuation consistent."
+        )
+    if target == "en":
+        return (
+            "Translate the following Danish text into natural English. "
+            "Respond with English only and keep punctuation consistent."
+        )
+    return f"Translate the following text into {target or 'the target language'}. Respond with the translation only."
 
 
 def translate_google(content: str, target_language: str) -> str:
@@ -49,18 +106,29 @@ def translate_google(content: str, target_language: str) -> str:
     if not trimmed:
         return ""
 
+    client = _get_translate_client()
+    translate_error = None
+
+    if client is not None:
+        try:
+            result = client.translate(
+                trimmed, target_language=target_language, format_="text"
+            )
+            translated = (result.get("translatedText") or "").strip()
+            if translated:
+                return translated
+            raise RuntimeError("Translation service returned an empty result.")
+        except Exception as exc:  # pragma: no cover - external API failure
+            translate_error = exc
+
+    # Fall back to the LLM if Google Translate is unavailable or misconfigured.
     try:
-        result = _get_translate_client().translate(
-            trimmed, target_language=target_language, format_="text"
-        )
+        translated_llm = _translate(trimmed, _llm_translation_instruction(target_language)).strip()
+        if not translated_llm:
+            raise RuntimeError("Translation service returned an empty result.")
+        return translated_llm
     except Exception as exc:  # pragma: no cover - external API failure
-        raise RuntimeError("Translation service unavailable.") from exc
-
-    translated = (result.get("translatedText") or "").strip()
-    if not translated:
-        raise RuntimeError("Translation service returned an empty result.")
-
-    return translated
+        raise RuntimeError("Translation service unavailable.") from translate_error or exc
 
 
 def _extract_json_object(raw_text: str):

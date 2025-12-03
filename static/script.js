@@ -2174,9 +2174,11 @@ async function translateAddWord() {
     if (!englishValue && danishValue) {
         sourceField = danishField;
         targetField = englishField;
+        direction = "da-en";
     } else if (englishValue && !danishValue) {
         sourceField = englishField;
         targetField = danishField;
+        direction = "en-da";
     }
 
     const text = sourceField.value.trim();
