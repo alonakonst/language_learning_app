@@ -1,3 +1,4 @@
+"""Utility script to export users, entries, and daily totals as JSON."""
 import argparse
 import json
 import sys

@@ -1,3 +1,4 @@
+"""Per-user per-day counters for completed practice exercises."""
 from datetime import date
 
 from peewee import DateField, ForeignKeyField, IntegerField

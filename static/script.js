@@ -1,3 +1,9 @@
+// Frontend logic for auth, dictionary entries, translations, practice flows, and progress UI.
+const DEMO_CREDENTIALS = {
+    username: "tester",
+    password: "1234",
+};
+
 const authState = {
     authenticated: false,
     username: null,
@@ -247,7 +253,9 @@ function formatDayLabel(dateString) {
         return "";
     }
     const date = new Date(`${dateString}T00:00:00Z`);
-    return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    const weekday = date.getUTCDay();
+    const labels = ["S", "M", "T", "W", "T", "F", "S"];
+    return labels[weekday] || "";
 }
 
 function formatLongDayLabel(dateString) {
@@ -1689,6 +1697,7 @@ function updateAuthState(authenticated, username) {
         clearEntriesList("Sign in to see your saved words.");
         resetPractiseState("Sign in to start practising.");
         resetProgressState("Sign in to see your progress.");
+        prefillDemoCredentials();
         switchView("auth");
     }
 }
@@ -1993,6 +2002,18 @@ function hideEntryModal() {
     const modal = document.getElementById("entryModal");
     if (modal) {
         modal.classList.add("modal--hidden");
+    }
+}
+
+function prefillDemoCredentials() {
+    const loginUsername = document.getElementById("loginUsername");
+    const loginPassword = document.getElementById("loginPassword");
+
+    if (loginUsername) {
+        loginUsername.value = DEMO_CREDENTIALS.username;
+    }
+    if (loginPassword) {
+        loginPassword.value = DEMO_CREDENTIALS.password;
     }
 }
 
@@ -2364,6 +2385,7 @@ function initApp() {
 
     setTranslationDirection(getTranslationDirection());
 
+    prefillDemoCredentials();
     clearEntriesList("Sign in to see your saved words.");
     checkAuthStatus();
     resetPractiseState("Sign in to start practising.");

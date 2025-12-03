@@ -1,3 +1,4 @@
+"""User model for authentication."""
 from peewee import CharField
 
 from .base import Base

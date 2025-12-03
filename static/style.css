@@ -1,3 +1,4 @@
+/* Styles for the language learning app layout, auth, practice, and progress UI. */
 * {
     box-sizing: border-box;
 }
@@ -79,12 +80,6 @@ body {
     width: 100%;
 }
 
-/* no longer used */
-.card--result {
-    background: #f8f8f8;
-    color: #0f172a;
-}
-
 .card__title {
     margin: 0;
     font-size: 1.25rem;
@@ -140,6 +135,14 @@ body {
     margin: 0;
     font-size: 0.85rem;
     color: #000000;
+}
+
+.auth-divider {
+    text-align: center;
+    margin: -0.25rem 0 0.25rem;
+    font-weight: 600;
+    color: #111111;
+    letter-spacing: 0.04em;
 }
 
 .btn {

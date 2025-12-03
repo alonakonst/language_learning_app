@@ -1,3 +1,4 @@
+"""Database models and helpers for the language learning app."""
 from .database import database
 
 from .dictionary_entry import DictionaryEntry

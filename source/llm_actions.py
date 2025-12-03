@@ -1,3 +1,4 @@
+"""LLM-backed helpers for translation, flashcard distractors, and example generation."""
 import json
 import os
 import re

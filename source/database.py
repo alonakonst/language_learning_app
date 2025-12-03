@@ -1,3 +1,4 @@
+"""Database configuration for SQLite (default) or Postgres via DATABASE_URL."""
 import os
 import urllib.parse as urlparse
 

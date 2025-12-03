@@ -1,3 +1,4 @@
+"""Flask app serving the language learning experience with auth, dictionary CRUD, practice, and progress tracking."""
 from functools import wraps
 
 import os
@@ -18,6 +19,10 @@ from source import DailyExerciseTotal, DictionaryEntry, User, database, llm_acti
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-secret-key")
+
+DEMO_USERNAME = os.environ.get("DEMO_USERNAME", "tester")
+DEMO_PASSWORD = os.environ.get("DEMO_PASSWORD", "1234")
+DEMO_SOURCE_USERNAME = os.environ.get("DEMO_SOURCE_USERNAME", "liza")
 
 tts_client = None
 
@@ -71,12 +76,73 @@ def init_database():
     database.create_tables([DailyExerciseTotal], safe=True)
 
 
+def ensure_demo_user_seeded():
+    """
+    Create a demo user with known credentials and clone Liza's data into it.
+    """
+    try:
+        source_user = User.get_or_none(User.username == DEMO_SOURCE_USERNAME)
+        if source_user is None:
+            app.logger.warning(
+                "Source user '%s' not found; demo user will not be seeded.",
+                DEMO_SOURCE_USERNAME,
+            )
+            return
+
+        demo_user, created = User.get_or_create(
+            username=DEMO_USERNAME,
+            defaults={"password_hash": generate_password_hash(DEMO_PASSWORD)},
+        )
+        if not created and not check_password_hash(demo_user.password_hash, DEMO_PASSWORD):
+            demo_user.password_hash = generate_password_hash(DEMO_PASSWORD)
+            demo_user.save()
+
+        source_entries = list(
+            DictionaryEntry.select().where(DictionaryEntry.user == source_user)
+        )
+        source_totals = list(
+            DailyExerciseTotal.select().where(DailyExerciseTotal.user == source_user)
+        )
+
+        with database.atomic():
+            DictionaryEntry.delete().where(DictionaryEntry.user == demo_user).execute()
+            DailyExerciseTotal.delete().where(DailyExerciseTotal.user == demo_user).execute()
+
+            for entry in source_entries:
+                DictionaryEntry.create(
+                    user=demo_user,
+                    text=entry.text,
+                    translation=entry.translation,
+                    notes=entry.notes,
+                    is_external_input=entry.is_external_input,
+                    created_at=entry.created_at,
+                )
+
+            for total in source_totals:
+                DailyExerciseTotal.create(
+                    user=demo_user,
+                    day=total.day,
+                    count=total.count,
+                )
+
+        app.logger.info(
+            "Seeded demo user '%s' with %d entries and %d progress rows from '%s'.",
+            DEMO_USERNAME,
+            len(source_entries),
+            len(source_totals),
+            DEMO_SOURCE_USERNAME,
+        )
+    except Exception:
+        app.logger.exception("Failed to seed demo user data.")
+
+
 @app.teardown_appcontext
 def close_database(_exc):
     if not database.is_closed():
         database.close()
 
 init_database()
+ensure_demo_user_seeded()
 
 
 def _load_example_from_notes(entry: DictionaryEntry):

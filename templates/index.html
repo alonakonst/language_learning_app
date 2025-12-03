@@ -1,9 +1,9 @@
 <!DOCTYPE html>
+<!-- Main UI for the language learning app with auth, dictionary, practise, and progress views. -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>My Flask App</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
@@ -21,15 +21,17 @@
                 <h2 class="card__title">Sign in</h2>
                 <label class="field">
                     <span class="field__label">Username</span>
-                    <input type="text" id="loginUsername" autocomplete="username" placeholder="Enter username">
+                    <input type="text" id="loginUsername" autocomplete="username" placeholder="Enter username" value="tester">
                 </label>
                 <label class="field">
                     <span class="field__label">Password</span>
-                    <input type="password" id="loginPassword" autocomplete="current-password" placeholder="Enter password">
+                    <input type="password" id="loginPassword" autocomplete="current-password" placeholder="Enter password" value="1234">
                 </label>
                 <p class="form-status" id="loginStatus"></p>
                 <button class="btn btn--primary" id="loginButton">Log in</button>
             </div>
+
+            <p class="auth-divider">or</p>
 
             <div class="card">
                 <h2 class="card__title">Create account</h2>

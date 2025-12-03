@@ -1,3 +1,4 @@
+"""Dictionary entries saved by users with translations and examples metadata."""
 from datetime import datetime
 
 from .base import Base

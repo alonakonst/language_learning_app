@@ -1,3 +1,4 @@
+"""Shared Peewee base model bound to the configured database."""
 from .database import database
 
 from peewee import Model
