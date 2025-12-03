@@ -11,8 +11,7 @@ A Flask-based single-page app for collecting English/Danish vocabulary, practisi
 
 ## Setup
 1. Install dependencies: `pip install -r requirements.txt` (use a virtualenv).
-2. Set required env vars:
-   - `FLASK_SECRET_KEY` for session signing (falls back to a dev default).
+2. Create `.env` file and set required env vars:
    - `OPENAI_API_KEY` for AI prompts.
    - `GOOGLE_APPLICATION_CREDENTIALS` pointing to a service-account JSON for Translate/Text-to-Speech.
    - Optional: `DATABASE_URL` for Postgres (otherwise uses `database.db`).
