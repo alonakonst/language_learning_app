@@ -3,11 +3,11 @@
 A Flask-based single-page app for collecting English/Danish vocabulary, practising with AI-generated exercises, and tracking progress over time.
 
 ## Features
-- User authentication with a pre-seeded demo login (`tester` / `1234`) that mirrors user `liza`'s data on startup.
+- User authentication with a pre-seeded demo login (`tester` / `1234`) startup.
 - Save bilingual dictionary entries, view saved words, and hear Danish pronunciation.
-- AI-powered practice modes (flashcards, cloze) plus usage examples for entries.
-- Progress dashboard showing recent word additions and completed exercises.
-- SQLite by default with optional Postgres via `DATABASE_URL`.
+- AI-powered practice modes (flashcards, contextual sentences) plus usage examples for entries.
+- Progress page showing recent word additions and completed exercises.
+- Postgres via `DATABASE_URL`.
 
 ## Setup
 1. Install dependencies: `pip install -r requirements.txt` (use a virtualenv).
@@ -16,14 +16,10 @@ A Flask-based single-page app for collecting English/Danish vocabulary, practisi
    - `OPENAI_API_KEY` for AI prompts.
    - `GOOGLE_APPLICATION_CREDENTIALS` pointing to a service-account JSON for Translate/Text-to-Speech.
    - Optional: `DATABASE_URL` for Postgres (otherwise uses `database.db`).
-3. Run the app locally: `flask --app server run --debug` or `gunicorn server:app`.
+3. Run the app locally: `python3 server.py`.
 
 ## Data and demo seeding
-- On startup the app copies all entries/progress from user `liza` into the demo user `tester` with password `1234`.
 - Export the database to JSON: `python scripts/export_data.py -o export.json`.
-
-## Testing
-- Quick sanity check: `python -m py_compile server.py`.
 
 ## Project layout
 - `server.py`: Flask routes, auth, progress, seeding.
@@ -31,3 +27,6 @@ A Flask-based single-page app for collecting English/Danish vocabulary, practisi
 - `templates/index.html`: Single-page UI shell.
 - `static/`: Frontend JS and styles.
 - `scripts/export_data.py`: Export data to JSON.
+
+## App is available on
+https://language-learning-app-13k2.onrender.com/
