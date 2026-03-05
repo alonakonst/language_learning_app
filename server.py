@@ -5,7 +5,7 @@ import os
 import random
 import json
 import re
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from dotenv import load_dotenv
 from flask import Flask, render_template, request, jsonify, session, g, make_response, send_from_directory
@@ -70,10 +70,41 @@ def init_database():
                     )
             except Exception:
                 app.logger.exception("Unable to add created_at column automatically.")
+        if "last_seen_at" not in existing_columns:
+            try:
+                if database.__class__.__name__ == "SqliteDatabase":
+                    database.execute_sql(
+                        f'ALTER TABLE "{table_name}" ADD COLUMN "last_seen_at" TIMESTAMP'
+                    )
+                else:
+                    database.execute_sql(
+                        f'ALTER TABLE "{table_name}" ADD COLUMN "last_seen_at" TIMESTAMP'
+                    )
+            except Exception:
+                app.logger.exception("Unable to add last_seen_at column automatically.")
+        if "probability_score" not in existing_columns:
+            try:
+                if database.__class__.__name__ == "SqliteDatabase":
+                    database.execute_sql(
+                        f'ALTER TABLE "{table_name}" ADD COLUMN "probability_score" REAL NOT NULL DEFAULT 0.8'
+                    )
+                else:
+                    database.execute_sql(
+                        f'ALTER TABLE "{table_name}" ADD COLUMN "probability_score" DOUBLE PRECISION NOT NULL DEFAULT 0.8'
+                    )
+            except Exception:
+                app.logger.exception("Unable to add probability_score column automatically.")
 
     database.create_tables([DictionaryEntry], safe=True)
     database.create_tables([DailyExerciseTotal], safe=True)
     database.create_tables([ExerciseLog], safe=True)
+    try:
+        DictionaryEntry.update(probability_score=0.8).where(
+            (DictionaryEntry.probability_score.is_null(True))
+            | (DictionaryEntry.probability_score <= 0)
+        ).execute()
+    except Exception:
+        app.logger.exception("Unable to normalize probability_score defaults.")
 
     log_table_name = ExerciseLog._meta.table_name
     if database.table_exists(log_table_name):
@@ -126,6 +157,62 @@ def _to_iso_date(value):
         return value.isoformat()
     except Exception:
         return str(value)
+
+
+def _clamp(value: float, low: float, high: float) -> float:
+    return max(low, min(high, value))
+
+
+def _utc_now() -> datetime:
+    return datetime.now(UTC)
+
+
+def _as_utc(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
+
+
+def _recompute_entry_probability(entry: DictionaryEntry) -> float:
+    now = _utc_now()
+    avg_attempt_score = (
+        ExerciseLog.select(fn.AVG(ExerciseLog.attempt_score))
+        .where(
+            (ExerciseLog.user == entry.user)
+            & (ExerciseLog.entry == entry)
+        )
+        .scalar()
+    )
+
+    avg_attempt_score = float(avg_attempt_score) if avg_attempt_score is not None else 2.0
+    avg_attempt_score = _clamp(avg_attempt_score, 1.0, 4.0)
+
+    # Reverse average score so higher/worse attempts increase selection probability.
+    difficulty = (avg_attempt_score - 1.0) / 3.0
+
+    last_seen_at = _as_utc(getattr(entry, "last_seen_at", None))
+    if last_seen_at:
+        seen_gap_days = max((now - last_seen_at).total_seconds() / 86400.0, 0.0)
+        recency_boost = _clamp(seen_gap_days / 14.0, 0.0, 1.0)
+    else:
+        recency_boost = 1.0
+
+    created_at = _as_utc(getattr(entry, "created_at", None))
+    if created_at:
+        age_days = max((now - created_at).total_seconds() / 86400.0, 0.0)
+        newness_boost = 1.0 - _clamp(age_days / 30.0, 0.0, 1.0)
+    else:
+        newness_boost = 1.0
+
+    # Keep current probabilities relatively high while still ranking by performance/recency/newness.
+    probability = 0.55 + (0.25 * difficulty) + (0.10 * recency_boost) + (0.10 * newness_boost)
+    probability = _clamp(probability, 0.15, 0.99)
+
+    entry.probability_score = round(float(probability), 4)
+    entry.save()
+    return entry.probability_score
 
 
 def _load_examples_from_notes(notes: str):
@@ -446,6 +533,7 @@ def list_entries():
             "notes": entry.notes,
             "is_external_input": bool(getattr(entry, "is_external_input", True)),
             "exercise_count": int(exercise_counts.get(entry.id, 0)),
+            "probability_score": float(getattr(entry, "probability_score", 0.8) or 0.8),
             "example": (_load_examples_from_notes(entry.notes) or [None])[0],
             "examples": _load_examples_from_notes(entry.notes),
         }
@@ -459,7 +547,7 @@ def list_entries():
 
 
 def _daily_counts(model, date_field, days: int):
-    today = datetime.utcnow().date()
+    today = _utc_now().date()
     start_date = today - timedelta(days=days - 1)
     date_expr = fn.DATE(date_field)
 
@@ -492,7 +580,7 @@ def _daily_counts(model, date_field, days: int):
 
 
 def _daily_totals(model, date_field, count_field, days: int):
-    today = datetime.utcnow().date()
+    today = _utc_now().date()
     start_date = today - timedelta(days=days - 1)
     date_expr = date_field
 
@@ -583,7 +671,7 @@ def progress_exercise():
             (DictionaryEntry.id == entry_id) & (DictionaryEntry.user == g.user)
         )
 
-    today = datetime.utcnow().date()
+    today = _utc_now().date()
     existing = DailyExerciseTotal.get_or_none(
         (DailyExerciseTotal.user == g.user) & (DailyExerciseTotal.day == today)
     )
@@ -601,7 +689,35 @@ def progress_exercise():
         attempt_score=attempt_score,
     )
 
-    return jsonify({"status": "ok"})
+    probability_score = None
+    if entry is not None:
+        try:
+            probability_score = _recompute_entry_probability(entry)
+        except Exception:
+            app.logger.exception("Unable to recompute probability_score for entry %s", entry.id)
+
+    return jsonify({"status": "ok", "probability_score": probability_score})
+
+
+@app.route("/practise/entry-seen", methods=["POST"])
+@login_required
+def practise_entry_seen():
+    data = request.get_json() or {}
+    entry_id = data.get("entry_id")
+    if not entry_id:
+        return jsonify({"error": "entry_id is required."}), 400
+
+    entry = DictionaryEntry.get_or_none(
+        (DictionaryEntry.id == entry_id) & (DictionaryEntry.user == g.user)
+    )
+    if entry is None:
+        return jsonify({"error": "Entry not found."}), 404
+
+    entry.last_seen_at = _utc_now()
+    entry.save()
+    probability_score = _recompute_entry_probability(entry)
+
+    return jsonify({"status": "ok", "entry_id": entry.id, "probability_score": probability_score})
 
 
 @app.route("/entries/<int:entry_id>/example", methods=["POST"])

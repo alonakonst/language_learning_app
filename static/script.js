@@ -93,6 +93,39 @@ function incrementEntryExerciseCount(entryId) {
     entry.exercise_count = Number(entry.exercise_count || 0) + 1;
 }
 
+function setEntryProbabilityScore(entryId, value) {
+    const entry = findEntryById(entryId);
+    const parsed = Number(value);
+    if (!entry || !Number.isFinite(parsed)) {
+        return;
+    }
+    entry.probability_score = parsed;
+}
+
+async function markEntrySeenForProbability(entryId) {
+    if (!authState.authenticated || !entryId) {
+        return;
+    }
+    try {
+        const response = await fetch("/practise/entry-seen", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ entry_id: entryId }),
+        });
+        if (response.status === 401) {
+            updateAuthState(false, null);
+            return;
+        }
+        const data = await response.json();
+        if (!response.ok) {
+            return;
+        }
+        setEntryProbabilityScore(entryId, data.probability_score);
+    } catch (error) {
+        console.error("Error marking entry as seen:", error);
+    }
+}
+
 function registerExerciseIncorrectAttempt() {
     if (practiseState.currentExerciseFinalized) {
         return;
@@ -121,6 +154,9 @@ async function finalizeExerciseCompletion(kind, wasCorrect, entryId = null) {
     const logged = await logExerciseCompletion(kind, attemptScore, entryId);
     if (logged && entryId) {
         incrementEntryExerciseCount(entryId);
+        if (Number.isFinite(logged.probabilityScore)) {
+            setEntryProbabilityScore(entryId, logged.probabilityScore);
+        }
         renderNewWordNotice(entryId);
     }
 }
@@ -198,6 +234,7 @@ function normalizeEntryForDisplay(entry) {
         example: normalizedExample,
         examples: normalizedExamples,
         is_external_input: Boolean(entry.is_external_input ?? true),
+        probability_score: Number(entry.probability_score ?? 0.8),
     };
 }
 
@@ -258,17 +295,42 @@ function selectPractiseTarget() {
         return null;
     }
 
-    const scored = practiseState.entries.map((entry) => {
-        const stats = getEntryStats(entry.id);
-        const bucket = stats.attempts === 0 ? 0 : stats.lastResult === false ? 1 : 2;
-        return { entry, bucket, last: stats.lastPractised || 0 };
+    const candidates = practiseState.entries.filter((entry) => entry && entry.id);
+    if (candidates.length === 0) {
+        return null;
+    }
+
+    const minWeight = 0.01;
+    const weights = candidates.map((entry) => {
+        const parsed = Number(entry.probability_score);
+        const baseWeight = Number.isFinite(parsed) && parsed > 0 ? parsed : 0.8;
+        return Math.max(minWeight, baseWeight);
     });
+    const total = weights.reduce((sum, value) => sum + value, 0);
+    if (!Number.isFinite(total) || total <= 0) {
+        return candidates[Math.floor(Math.random() * candidates.length)] || null;
+    }
 
-    const bestBucket = Math.min(...scored.map((item) => item.bucket));
-    const candidates = scored.filter((item) => item.bucket === bestBucket);
-    candidates.sort((a, b) => a.last - b.last);
+    let draw = Math.random() * total;
+    let selected = candidates[0];
+    for (let i = 0; i < candidates.length; i += 1) {
+        draw -= weights[i];
+        if (draw <= 0) {
+            selected = candidates[i];
+            break;
+        }
+    }
 
-    return candidates[0]?.entry || null;
+    if (candidates.length > 1 && Number(selected.id) === Number(practiseState.activeEntryId)) {
+        const withoutActive = candidates.filter(
+            (entry) => Number(entry.id) !== Number(practiseState.activeEntryId)
+        );
+        if (withoutActive.length > 0) {
+            selected = withoutActive[Math.floor(Math.random() * withoutActive.length)];
+        }
+    }
+
+    return selected;
 }
 
 function detectDirectionFromText(text, fallback = "en-da") {
@@ -925,6 +987,7 @@ async function prepareClozeQuestion() {
 
     setActiveEntry(target.id);
     resetCurrentExerciseTracking();
+    markEntrySeenForProbability(target.id);
 
     try {
         const response = await fetch("/practise/cloze", {
@@ -1020,6 +1083,7 @@ async function prepareAiPractiseQuestion() {
 
     setActiveEntry(target.id);
     resetCurrentExerciseTracking();
+    markEntrySeenForProbability(target.id);
 
     try {
         const response = await fetch("/practise/ai", {
@@ -1613,19 +1677,30 @@ async function fetchProgress(days = progressState.windowDays) {
 
 async function logExerciseCompletion(kind = "practise", attemptScore = 1, entryId = null) {
     if (!authState.authenticated) {
-        return false;
+        return null;
     }
     try {
-        await fetch("/progress/exercise", {
+        const response = await fetch("/progress/exercise", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ kind, attempt_score: attemptScore, entry_id: entryId }),
         });
+        if (response.status === 401) {
+            updateAuthState(false, null);
+            return null;
+        }
+        const data = await response.json();
+        if (!response.ok) {
+            return null;
+        }
         fetchProgress(progressState.windowDays);
-        return true;
+        return {
+            ok: true,
+            probabilityScore: Number(data.probability_score),
+        };
     } catch (error) {
         console.error("Error logging exercise completion:", error);
-        return false;
+        return null;
     }
 }
 

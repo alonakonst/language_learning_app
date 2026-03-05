@@ -4,7 +4,7 @@ from datetime import datetime
 from .base import Base
 from .user import User
 
-from peewee import BooleanField, DateTimeField, ForeignKeyField, TextField
+from peewee import BooleanField, DateTimeField, FloatField, ForeignKeyField, TextField
 
 
 class DictionaryEntry(Base):
@@ -14,6 +14,8 @@ class DictionaryEntry(Base):
     notes = TextField(null=True)
     is_external_input = BooleanField(default=True, null=False)
     created_at = DateTimeField(default=datetime.utcnow, null=True)
+    last_seen_at = DateTimeField(null=True)
+    probability_score = FloatField(default=0.8, null=False)
 
     def __str__(self) -> str:
         return (
