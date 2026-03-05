@@ -19,6 +19,8 @@ from source import DailyExerciseTotal, DictionaryEntry, User, database, llm_acti
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-secret-key")
+app.config["SESSION_PERMANENT"] = True
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=365)
 
 tts_client = None
 
@@ -306,6 +308,7 @@ def register():
 
     password_hash = generate_password_hash(password)
     user = User.create(username=username, password_hash=password_hash)
+    session.permanent = True
     session["user_id"] = user.id
     return jsonify({"status": "success", "username": user.username})
 
@@ -323,6 +326,7 @@ def login():
     if user is None or not check_password_hash(user.password_hash, password):
         return jsonify({"error": "Invalid credentials."}), 401
 
+    session.permanent = True
     session["user_id"] = user.id
     return jsonify({"status": "success", "username": user.username})
 

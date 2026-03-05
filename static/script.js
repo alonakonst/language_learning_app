@@ -2395,13 +2395,9 @@ async function autoLoginFromSavedCredentials() {
         return;
     }
 
-    const success = await loginWithCredentials(savedCredentials.username, savedCredentials.password, {
+    await loginWithCredentials(savedCredentials.username, savedCredentials.password, {
         silent: true,
     });
-    if (!success) {
-        clearDeviceCredentials();
-        prefillSavedCredentials();
-    }
 }
 
 function initApp() {
