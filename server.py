@@ -15,10 +15,11 @@ from google.cloud import texttospeech
 
 load_dotenv()
 
-from source import DailyExerciseTotal, DictionaryEntry, User, database, llm_actions
+from source import DailyExerciseTotal, DictionaryEntry, ExerciseLog, User, database, llm_actions
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-secret-key")
+
 app.config["SESSION_PERMANENT"] = True
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=365)
 
@@ -72,6 +73,35 @@ def init_database():
 
     database.create_tables([DictionaryEntry], safe=True)
     database.create_tables([DailyExerciseTotal], safe=True)
+    database.create_tables([ExerciseLog], safe=True)
+
+    log_table_name = ExerciseLog._meta.table_name
+    if database.table_exists(log_table_name):
+        existing_columns = {column.name for column in database.get_columns(log_table_name)}
+        if "attempt_score" not in existing_columns:
+            try:
+                if database.__class__.__name__ == "SqliteDatabase":
+                    database.execute_sql(
+                        f'ALTER TABLE "{log_table_name}" ADD COLUMN "attempt_score" INTEGER NOT NULL DEFAULT 1'
+                    )
+                else:
+                    database.execute_sql(
+                        f'ALTER TABLE "{log_table_name}" ADD COLUMN "attempt_score" INTEGER NOT NULL DEFAULT 1'
+                    )
+            except Exception:
+                app.logger.exception("Unable to add attempt_score column automatically.")
+        if "entry_id" not in existing_columns:
+            try:
+                if database.__class__.__name__ == "SqliteDatabase":
+                    database.execute_sql(
+                        f'ALTER TABLE "{log_table_name}" ADD COLUMN "entry_id" INTEGER'
+                    )
+                else:
+                    database.execute_sql(
+                        f'ALTER TABLE "{log_table_name}" ADD COLUMN "entry_id" INTEGER'
+                    )
+            except Exception:
+                app.logger.exception("Unable to add entry_id column automatically.")
 
 
 @app.teardown_appcontext
@@ -392,6 +422,21 @@ def add_entry():
 @app.route("/entries", methods=["GET"])
 @login_required
 def list_entries():
+    exercise_counts = {
+        item.entry_id: item.exercise_count
+        for item in (
+            ExerciseLog.select(
+                ExerciseLog.entry,
+                fn.COUNT(ExerciseLog.id).alias("exercise_count"),
+            )
+            .where(
+                (ExerciseLog.user == g.user)
+                & ExerciseLog.entry.is_null(False)
+            )
+            .group_by(ExerciseLog.entry)
+        )
+    }
+
     entries = [
         {
             "id": entry.id,
@@ -400,6 +445,7 @@ def list_entries():
             "created_at": entry.created_at.isoformat() if getattr(entry, "created_at", None) else None,
             "notes": entry.notes,
             "is_external_input": bool(getattr(entry, "is_external_input", True)),
+            "exercise_count": int(exercise_counts.get(entry.id, 0)),
             "example": (_load_examples_from_notes(entry.notes) or [None])[0],
             "examples": _load_examples_from_notes(entry.notes),
         }
@@ -519,6 +565,24 @@ def progress_daily():
 @app.route("/progress/exercise", methods=["POST"])
 @login_required
 def progress_exercise():
+    data = request.get_json() or {}
+    kind = (data.get("kind") or "practise").strip() or "practise"
+    try:
+        attempt_score = int(data.get("attempt_score", 1))
+    except (TypeError, ValueError):
+        attempt_score = 1
+    attempt_score = max(1, min(attempt_score, 4))
+    try:
+        entry_id = int(data.get("entry_id")) if data.get("entry_id") is not None else None
+    except (TypeError, ValueError):
+        entry_id = None
+
+    entry = None
+    if entry_id and entry_id > 0:
+        entry = DictionaryEntry.get_or_none(
+            (DictionaryEntry.id == entry_id) & (DictionaryEntry.user == g.user)
+        )
+
     today = datetime.utcnow().date()
     existing = DailyExerciseTotal.get_or_none(
         (DailyExerciseTotal.user == g.user) & (DailyExerciseTotal.day == today)
@@ -529,6 +593,13 @@ def progress_exercise():
         ).execute()
     else:
         DailyExerciseTotal.create(user=g.user, day=today, count=1)
+
+    ExerciseLog.create(
+        user=g.user,
+        entry=entry,
+        kind=kind,
+        attempt_score=attempt_score,
+    )
 
     return jsonify({"status": "ok"})
 

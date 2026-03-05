@@ -19,6 +19,8 @@ const practiseState = {
     entryStats: {},
     activeEntryId: null,
     activeEntryMarkedIncorrect: false,
+    currentExerciseAttempts: 0,
+    currentExerciseFinalized: false,
 };
 
 const progressState = {
@@ -52,6 +54,75 @@ const entryModalState = {
 
 function toDisplayText(value) {
     return (value ?? "").toString().trim();
+}
+
+function resetCurrentExerciseTracking() {
+    practiseState.currentExerciseAttempts = 0;
+    practiseState.currentExerciseFinalized = false;
+}
+
+function findEntryById(entryId) {
+    if (!entryId) {
+        return null;
+    }
+    return practiseState.entries.find((entry) => Number(entry.id) === Number(entryId)) || null;
+}
+
+function isNewWordEntry(entryId) {
+    const entry = findEntryById(entryId);
+    if (!entry) {
+        return false;
+    }
+    return Boolean(entry.is_external_input) && Number(entry.exercise_count || 0) === 0;
+}
+
+function renderNewWordNotice(entryId) {
+    const notice = document.getElementById("practiseNewWordNotice");
+    if (!notice) {
+        return;
+    }
+    const show = isNewWordEntry(entryId);
+    notice.classList.toggle("is-hidden", !show);
+}
+
+function incrementEntryExerciseCount(entryId) {
+    const entry = findEntryById(entryId);
+    if (!entry) {
+        return;
+    }
+    entry.exercise_count = Number(entry.exercise_count || 0) + 1;
+}
+
+function registerExerciseIncorrectAttempt() {
+    if (practiseState.currentExerciseFinalized) {
+        return;
+    }
+    practiseState.currentExerciseAttempts += 1;
+}
+
+async function finalizeExerciseCompletion(kind, wasCorrect, entryId = null) {
+    if (practiseState.currentExerciseFinalized) {
+        return;
+    }
+    practiseState.currentExerciseFinalized = true;
+
+    let attemptScore = 4;
+    if (wasCorrect) {
+        const attemptsUsed = practiseState.currentExerciseAttempts + 1;
+        if (attemptsUsed <= 1) {
+            attemptScore = 1;
+        } else if (attemptsUsed === 2) {
+            attemptScore = 2;
+        } else {
+            attemptScore = 3;
+        }
+    }
+
+    const logged = await logExerciseCompletion(kind, attemptScore, entryId);
+    if (logged && entryId) {
+        incrementEntryExerciseCount(entryId);
+        renderNewWordNotice(entryId);
+    }
 }
 
 function registerServiceWorker() {
@@ -404,6 +475,7 @@ function resetPractiseState(message = "Sign in to start practising.") {
     practiseState.modeSelected = false;
     practiseState.activeEntryId = null;
     practiseState.activeEntryMarkedIncorrect = false;
+    resetCurrentExerciseTracking();
 
     const aiEmptyMessage = document.getElementById("practiseAiEmptyMessage");
     const aiBody = document.getElementById("practiseAiBody");
@@ -425,6 +497,7 @@ function resetPractiseState(message = "Sign in to start practising.") {
     if (aiFeedback) {
         aiFeedback.textContent = "";
     }
+    renderNewWordNotice(null);
     renderPractisePages();
 }
 
@@ -482,6 +555,7 @@ function updateAiPractiseAvailability() {
         practiseState.aiQuestion = null;
         practiseState.clozeQuestion = null;
         practiseState.aiAllowSelection = true;
+        renderNewWordNotice(null);
         return;
     }
 
@@ -491,6 +565,7 @@ function updateAiPractiseAvailability() {
         aiBody.classList.add("practise__body--hidden");
         practiseState.aiQuestion = null;
         practiseState.aiAllowSelection = true;
+        renderNewWordNotice(null);
         return;
     }
 
@@ -536,6 +611,7 @@ function renderClozeQuestion() {
 
     const question = practiseState.clozeQuestion;
     if (!question) {
+        renderNewWordNotice(null);
         promptEl.textContent = "No sentence available. Add more words.";
         hintEl.textContent = "";
         feedbackEl.textContent = "";
@@ -546,6 +622,7 @@ function renderClozeQuestion() {
         return;
     }
 
+    renderNewWordNotice(question.entryId);
     promptEl.textContent = question.prompt || "Fill in the blank.";
     hintEl.textContent = question.hintEnglish ? `Hint: ${question.hintEnglish}` : "";
     hintEl.classList.add("practise__hint--hidden");
@@ -560,7 +637,7 @@ function renderClozeQuestion() {
     inputEl.focus();
 }
 
-function checkClozeAnswer() {
+async function checkClozeAnswer() {
     const inputEl = document.getElementById("practiseClozeInput");
     const feedbackEl = document.getElementById("practiseClozeFeedback");
     const checkButton = document.getElementById("practiseClozeCheck");
@@ -603,9 +680,10 @@ function checkClozeAnswer() {
         practiseState.awaitingNext = true;
         renderClozeWordBar();
         renderNextExerciseButton();
-        logExerciseCompletion("cloze");
+        await finalizeExerciseCompletion("cloze", true, practiseState.clozeQuestion.entryId);
         markEntryResult(practiseState.clozeQuestion.entryId, true);
     } else {
+        registerExerciseIncorrectAttempt();
         markEntryIncorrectOnce(practiseState.clozeQuestion.entryId);
     }
     showClozeWordBarOnAttempt();
@@ -680,6 +758,7 @@ function giveUpCloze() {
     practiseState.awaitingNext = true;
     renderClozeWordBar();
     renderNextExerciseButton();
+    finalizeExerciseCompletion("cloze", false, practiseState.clozeQuestion.entryId);
     markEntryIncorrectOnce(practiseState.clozeQuestion.entryId);
     showClozeWordBarOnAttempt();
 }
@@ -845,6 +924,7 @@ async function prepareClozeQuestion() {
     }
 
     setActiveEntry(target.id);
+    resetCurrentExerciseTracking();
 
     try {
         const response = await fetch("/practise/cloze", {
@@ -896,6 +976,7 @@ function setAiPractiseLoading(message = "Asking AI for matching flashcards…") 
     if (feedback) {
         feedback.textContent = "";
     }
+    renderNewWordNotice(null);
     nextButton?.setAttribute("disabled", "true");
 }
 
@@ -910,6 +991,7 @@ function showAiPractiseError(message) {
     if (feedback) {
         feedback.textContent = "";
     }
+    renderNewWordNotice(null);
     nextButton?.removeAttribute("disabled");
 }
 
@@ -937,6 +1019,7 @@ async function prepareAiPractiseQuestion() {
     }
 
     setActiveEntry(target.id);
+    resetCurrentExerciseTracking();
 
     try {
         const response = await fetch("/practise/ai", {
@@ -1002,8 +1085,10 @@ function renderAiPractiseQuestion() {
     const feedback = document.getElementById("practiseAiFeedback");
 
     if (!question || !prompt || !options || !feedback) {
+        renderNewWordNotice(null);
         return;
     }
+    renderNewWordNotice(question.entryId);
 
     const partOfSpeech = question.partOfSpeech || "word";
     const posLabel = partOfSpeech;
@@ -1077,7 +1162,7 @@ function renderAiPractiseQuestion() {
     revealDistractorAddButtons();
 }
 
-function handleAiPractiseSelection(optionId, button) {
+async function handleAiPractiseSelection(optionId, button) {
     if (!practiseState.aiQuestion || !practiseState.aiAllowSelection) {
         return;
     }
@@ -1104,12 +1189,17 @@ function handleAiPractiseSelection(optionId, button) {
         options.classList.add("practise__options--disabled");
         renderNextExerciseButton();
         revealDistractorAddButtons();
-        logExerciseCompletion(practiseState.mode === "flash_da" ? "flash_da" : "flash_en");
+        await finalizeExerciseCompletion(
+            practiseState.mode === "flash_da" ? "flash_da" : "flash_en",
+            true,
+            practiseState.aiQuestion.entryId
+        );
         markEntryResult(practiseState.aiQuestion.entryId, true);
     } else {
         button.classList.add("practise__card--incorrect");
         feedback.textContent = "That's one of the new words. Try again.";
         setTimeout(() => button.classList.remove("practise__card--incorrect"), 900);
+        registerExerciseIncorrectAttempt();
         markEntryIncorrectOnce(practiseState.aiQuestion.entryId);
     }
 }
@@ -1521,19 +1611,21 @@ async function fetchProgress(days = progressState.windowDays) {
     }
 }
 
-async function logExerciseCompletion(kind = "practise") {
+async function logExerciseCompletion(kind = "practise", attemptScore = 1, entryId = null) {
     if (!authState.authenticated) {
-        return;
+        return false;
     }
     try {
         await fetch("/progress/exercise", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ kind }),
+            body: JSON.stringify({ kind, attempt_score: attemptScore, entry_id: entryId }),
         });
         fetchProgress(progressState.windowDays);
+        return true;
     } catch (error) {
         console.error("Error logging exercise completion:", error);
+        return false;
     }
 }
 

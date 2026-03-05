@@ -676,6 +676,20 @@ body {
     color: #000000;
 }
 
+.practise__new-word {
+    margin: 0;
+    display: inline-flex;
+    width: fit-content;
+    align-items: center;
+    border-radius: 999px;
+    padding: 0.25rem 0.7rem;
+    background: rgba(196, 181, 253, 0.5);
+    color: #6b21a8;
+    font-size: 0.84rem;
+    font-weight: 700;
+    text-transform: lowercase;
+}
+
 .practise__wordbar {
     display: flex;
     flex-direction: column;
