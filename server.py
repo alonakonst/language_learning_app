@@ -8,7 +8,7 @@ import re
 from datetime import datetime, timedelta
 
 from dotenv import load_dotenv
-from flask import Flask, render_template, request, jsonify, session, g, make_response
+from flask import Flask, render_template, request, jsonify, session, g, make_response, send_from_directory
 from peewee import fn
 from werkzeug.security import check_password_hash, generate_password_hash
 from google.cloud import texttospeech
@@ -275,6 +275,14 @@ def entry_pronunciation(entry_id: int):
 @app.route("/")
 def home():
     return render_template("index.html")
+
+
+@app.route("/sw.js")
+def service_worker():
+    response = send_from_directory("static", "sw.js", mimetype="application/javascript")
+    response.headers["Service-Worker-Allowed"] = "/"
+    response.headers["Cache-Control"] = "no-cache"
+    return response
 
 
 @app.route("/auth/status", methods=["GET"])

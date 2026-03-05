@@ -54,6 +54,18 @@ function toDisplayText(value) {
     return (value ?? "").toString().trim();
 }
 
+function registerServiceWorker() {
+    if (!("serviceWorker" in navigator)) {
+        return;
+    }
+
+    window.addEventListener("load", () => {
+        navigator.serviceWorker.register("/sw.js").catch((error) => {
+            console.warn("Service worker registration failed:", error);
+        });
+    });
+}
+
 function formatDanishText(value, fallback = "") {
     const text = toDisplayText(value);
     if (text) {
@@ -2393,6 +2405,8 @@ async function autoLoginFromSavedCredentials() {
 }
 
 function initApp() {
+    registerServiceWorker();
+
     document.getElementById("translateButton")?.addEventListener("click", translateText);
     document.getElementById("toggleDirectionButton")?.addEventListener("click", toggleTranslationDirection);
     document.getElementById("saveButton")?.addEventListener("click", SaveToDatabase);

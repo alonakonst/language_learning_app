@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Background -->
+  <rect width="512" height="512" rx="90" ry="90" fill="#C60C30"/>
+  
+  <!-- Vertical white bar -->
+  <rect x="170" y="0" width="70" height="512" fill="#FFFFFF"/>
+  
+  <!-- Horizontal white bar -->
+  <rect x="0" y="221" width="512" height="70" fill="#FFFFFF"/>
+</svg>

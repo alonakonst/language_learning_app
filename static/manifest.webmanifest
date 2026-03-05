@@ -1,0 +1,19 @@
+{
+  "name": "Language Learning App",
+  "short_name": "LanguageApp",
+  "description": "Practice English and Danish vocabulary with dictionary, exercises, and progress tracking.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f8fafc",
+  "theme_color": "#1f2937",
+  "icons": [
+    {
+      "src": "/static/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
