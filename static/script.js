@@ -1,8 +1,5 @@
 // Frontend logic for auth, dictionary entries, translations, practice flows, and progress UI.
-const DEMO_CREDENTIALS = {
-    username: "tester",
-    password: "1234",
-};
+const SAVED_CREDENTIALS_KEY = "auth.savedCredentials.v1";
 
 const authState = {
     authenticated: false,
@@ -1697,7 +1694,7 @@ function updateAuthState(authenticated, username) {
         clearEntriesList("Sign in to see your saved words.");
         resetPractiseState("Sign in to start practising.");
         resetProgressState("Sign in to see your progress.");
-        prefillDemoCredentials();
+        prefillSavedCredentials();
         switchView("auth");
     }
 }
@@ -2005,28 +2002,68 @@ function hideEntryModal() {
     }
 }
 
-function prefillDemoCredentials() {
-    const loginUsername = document.getElementById("loginUsername");
-    const loginPassword = document.getElementById("loginPassword");
-
-    if (loginUsername) {
-        loginUsername.value = DEMO_CREDENTIALS.username;
-    }
-    if (loginPassword) {
-        loginPassword.value = DEMO_CREDENTIALS.password;
+function saveDeviceCredentials(username, password) {
+    try {
+        localStorage.setItem(
+            SAVED_CREDENTIALS_KEY,
+            JSON.stringify({ username, password })
+        );
+    } catch (error) {
+        console.warn("Unable to persist credentials on this device.", error);
     }
 }
 
-async function loginUser() {
-    const username = document.getElementById("loginUsername")?.value.trim() ?? "";
-    const password = document.getElementById("loginPassword")?.value.trim() ?? "";
+function loadDeviceCredentials() {
+    try {
+        const raw = localStorage.getItem(SAVED_CREDENTIALS_KEY);
+        if (!raw) {
+            return null;
+        }
+        const parsed = JSON.parse(raw);
+        const username = (parsed?.username || "").toString().trim();
+        const password = (parsed?.password || "").toString().trim();
+        if (!username || !password) {
+            return null;
+        }
+        return { username, password };
+    } catch (error) {
+        console.warn("Unable to read saved credentials from this device.", error);
+        return null;
+    }
+}
+
+function clearDeviceCredentials() {
+    try {
+        localStorage.removeItem(SAVED_CREDENTIALS_KEY);
+    } catch (error) {
+        console.warn("Unable to clear saved credentials on this device.", error);
+    }
+}
+
+function prefillSavedCredentials() {
+    const loginUsername = document.getElementById("loginUsername");
+    const loginPassword = document.getElementById("loginPassword");
+    const savedCredentials = loadDeviceCredentials();
+    const username = savedCredentials?.username || "";
+    const password = savedCredentials?.password || "";
+
+    if (loginUsername) {
+        loginUsername.value = username;
+    }
+    if (loginPassword) {
+        loginPassword.value = password;
+    }
+}
+
+async function loginWithCredentials(username, password, options = {}) {
+    const { silent = false } = options;
     const status = document.getElementById("loginStatus");
 
-    showStatus(status, "");
-
     if (!username || !password) {
-        showStatus(status, "Please enter username and password.");
-        return;
+        if (!silent) {
+            showStatus(status, "Please enter username and password.");
+        }
+        return false;
     }
 
     try {
@@ -2040,20 +2077,38 @@ async function loginUser() {
 
         const data = await response.json();
         if (!response.ok) {
-            showStatus(status, data.error || "Login failed.");
-            return;
+            if (!silent) {
+                showStatus(status, data.error || "Login failed.");
+            }
+            return false;
         }
 
-        showStatus(status, "Welcome back!", false);
+        saveDeviceCredentials(username, password);
+        if (!silent) {
+            showStatus(status, "Welcome back!", false);
+        }
         const passwordField = document.getElementById("loginPassword");
         if (passwordField) {
-            passwordField.value = "";
+            passwordField.value = password;
         }
         updateAuthState(true, data.username);
+        return true;
     } catch (error) {
         console.error("Error logging in:", error);
-        showStatus(status, "Unable to log in right now.");
+        if (!silent) {
+            showStatus(status, "Unable to log in right now.");
+        }
+        return false;
     }
+}
+
+async function loginUser() {
+    const username = document.getElementById("loginUsername")?.value.trim() ?? "";
+    const password = document.getElementById("loginPassword")?.value.trim() ?? "";
+    const status = document.getElementById("loginStatus");
+
+    showStatus(status, "");
+    await loginWithCredentials(username, password);
 }
 
 async function registerUser() {
@@ -2083,6 +2138,7 @@ async function registerUser() {
             return;
         }
 
+        saveDeviceCredentials(username, password);
         showStatus(status, "Account created! You're in.", false);
         const passwordField = document.getElementById("registerPassword");
         if (passwordField) {
@@ -2110,6 +2166,7 @@ async function logoutUser() {
     } catch (error) {
         console.error("Error logging out:", error);
     } finally {
+        clearDeviceCredentials();
         updateAuthState(false, null);
         showStatus(document.getElementById("loginStatus"), "");
         showStatus(document.getElementById("registerStatus"), "");
@@ -2312,9 +2369,26 @@ async function checkAuthStatus() {
         const data = await response.json();
         updateAuthState(Boolean(data.authenticated), data.username || null);
         setExerciseMode("flash_en");
+        return Boolean(data.authenticated);
     } catch (error) {
         console.error("Error checking auth:", error);
         updateAuthState(false, null);
+        return false;
+    }
+}
+
+async function autoLoginFromSavedCredentials() {
+    const savedCredentials = loadDeviceCredentials();
+    if (!savedCredentials) {
+        return;
+    }
+
+    const success = await loginWithCredentials(savedCredentials.username, savedCredentials.password, {
+        silent: true,
+    });
+    if (!success) {
+        clearDeviceCredentials();
+        prefillSavedCredentials();
     }
 }
 
@@ -2387,9 +2461,13 @@ function initApp() {
 
     setTranslationDirection(getTranslationDirection());
 
-    prefillDemoCredentials();
+    prefillSavedCredentials();
     clearEntriesList("Sign in to see your saved words.");
-    checkAuthStatus();
+    checkAuthStatus().then((isAuthenticated) => {
+        if (!isAuthenticated) {
+            autoLoginFromSavedCredentials();
+        }
+    });
     resetPractiseState("Sign in to start practising.");
     updateAiPractiseAvailability();
 }
